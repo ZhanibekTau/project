@@ -2,7 +2,7 @@
   import { RouterLink, RouterView } from 'vue-router'
   </script>
   <script>
-  import {checkLoginStatus, logIn} from "./store/auth";
+  import {checkLoginStatus, logIn, logOut} from "./store/auth";
 
   export default {
     data: function() {
@@ -30,6 +30,10 @@
         }
         this.loading = false;
       },
+      logout() {
+        logOut()
+        window.location.reload();
+      }
     },
     mounted() {
       this.checkLogin = checkLoginStatus()
@@ -121,6 +125,12 @@
                   </RouterLink>
                 </li>
               </ul>
+              <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted text-uppercase">
+                  <button @click="logout" class="nav-link logout-btn">
+                    <svg class="feather"><use href="/feather-sprite-v4.29.0.svg#log-out"/></svg>
+                    Logout
+                  </button>
+              </h6>
             </div>
           </nav>
 
@@ -145,5 +155,22 @@
 
   .login-form .form-label {
     font-weight: 600;
+  }
+
+  .logout-btn {
+    background: none;
+    border: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    font-size: 18px; /* Increase text size */
+  }
+
+  .logout-btn svg {
+    width: 15px; /* Increase the size of the icon */
+    height: 15px; /* Increase the size of the icon */
+    margin-right: 10px; /* Increase space between the icon and text */
   }
   </style>
