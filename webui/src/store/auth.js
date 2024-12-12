@@ -17,3 +17,7 @@ export function logOut() {
     localStorage.removeItem('authToken');
     authState.isLoggedIn = false;
 }
+
+export function getToken() {
+    return localStorage.getItem('authToken');
+}

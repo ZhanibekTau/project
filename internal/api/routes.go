@@ -11,7 +11,29 @@ func (h *Handler) InitRoutes() http.Handler {
 	// Маршруты для healthcheck
 	mux.HandleFunc("/health/alive", healthcheck)
 	mux.HandleFunc("/health/ready", healthcheck)
-	mux.HandleFunc("/login", h.getHelloWorld)
+	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			h.doLogin(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/get-conversations", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			h.getConversations(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/get-users", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			h.getUsers(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		enableCORS(w, r)

@@ -38,7 +38,7 @@ func NewGormSqlDB(dbConfig *DBConfig) (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	Database.AutoMigrate(&model.User{})
+	Database.AutoMigrate(&model.User{}, &model.Conversation{}, &model.Message{}, &model.GroupMember{}, &model.Group{})
 
 	return Database, nil
 }

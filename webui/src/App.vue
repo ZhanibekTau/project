@@ -1,47 +1,4 @@
-  <script setup>
-  import { RouterLink, RouterView } from 'vue-router'
-  </script>
-  <script>
-  import {checkLoginStatus, logIn, logOut} from "./store/auth";
-
-  export default {
-    data: function() {
-      return {
-        errormsg: null,
-        loading: false,
-        username: "",
-        password: "",
-        checkLogin: false,
-      }
-    },
-    methods: {
-      async login() {
-        this.loading = true;
-        this.errormsg = null;
-        try {
-          let response = await this.$axios.post("/login", {
-            username: this.username,
-            password: this.password,
-          });
-          logIn(response.data['token'])
-          window.location.reload();
-        } catch (e) {
-          this.errormsg = "Login failed. Please check your credentials.";
-        }
-        this.loading = false;
-      },
-      logout() {
-        logOut()
-        window.location.reload();
-      }
-    },
-    mounted() {
-      this.checkLogin = checkLoginStatus()
-    }
-  }
-  </script>
-
-  <template>
+ <template>
     <div class="login-container" v-if="!checkLogin">
       <h1 class="h2">Login</h1>
 
@@ -67,7 +24,6 @@
               v-model="password"
               class="form-control"
               placeholder="Enter your password"
-              required
           />
         </div>
 
@@ -90,41 +46,45 @@
         <div class="row">
           <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
             <div class="position-sticky pt-3 sidebar-sticky">
-              <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted text-uppercase">
-                <span>General</span>
-              </h6>
-              <ul class="nav flex-column">
-                <li class="nav-item">
-                  <RouterLink to="/" class="nav-link">
-                    <svg class="feather"><use href="/feather-sprite-v4.29.0.svg#home"/></svg>
-                    Home
-                  </RouterLink>
-                </li>
-                <li class="nav-item">
-                  <RouterLink to="/link1" class="nav-link">
-                    <svg class="feather"><use href="/feather-sprite-v4.29.0.svg#layout"/></svg>
-                    Menu item 1
-                  </RouterLink>
-                </li>
-                <li class="nav-item">
-                  <RouterLink to="/link2" class="nav-link">
-                    <svg class="feather"><use href="/feather-sprite-v4.29.0.svg#key"/></svg>
-                    Menu item 2
-                  </RouterLink>
-                </li>
-              </ul>
+              <div class="conversations">
+                <h5>Your Conversations:</h5>
 
-              <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted text-uppercase">
-                <span>Secondary menu</span>
-              </h6>
-              <ul class="nav flex-column">
-                <li class="nav-item">
-                  <RouterLink :to="'/some/' + 'variable_here' + '/path'" class="nav-link">
-                    <svg class="feather"><use href="/feather-sprite-v4.29.0.svg#file-text"/></svg>
-                    Item 1
-                  </RouterLink>
-                </li>
-              </ul>
+                <!-- Search Bar -->
+                <div class="user-finder">
+                  <input
+                      type="text"
+                      v-model="searchQuery"
+                      placeholder="Search for a user to start a conversation"
+                      class="search-bar"
+                  />
+                  <button @click="findUser" class="search-button">Find</button>
+                </div>
+
+                <!-- Search Results -->
+                <div v-if="userSearchResult.length" class="search-results">
+                  <ul>
+                    <li v-for="user in userSearchResult" :key="user.id" class="search-item">
+                      <img :src="user.profile_photo_url" alt="Profile" class="profile-photo" />
+                      <div class="user-details">
+                        <h5>{{ user.username }}</h5>
+                        <button @click="startConversation(user.id)">Start Conversation</button>
+                      </div>
+                    </li>
+                  </ul>
+                </div>
+                <p v-else-if="searchQuery">No users found!</p>
+
+                <ul v-if="users.length">
+                  <li v-for="user in users" :key="user.id" class="conversation-item">
+                    <img :src="user.profile_photo_url" alt="Profile" class="profile-photo" />
+                    <div class="user-details">
+                      <h5>{{ user.username }}</h5>
+                      <button @click="openConversation(user.id)">Open Chat</button>
+                    </div>
+                  </li>
+                </ul>
+                <p v-else>No conversations yet!</p>
+              </div>
               <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted text-uppercase">
                   <button @click="logout" class="nav-link logout-btn">
                     <svg class="feather"><use href="/feather-sprite-v4.29.0.svg#log-out"/></svg>
@@ -141,6 +101,81 @@
       </div>
     </div>
   </template>
+
+ <script setup>
+ import { RouterLink, RouterView } from 'vue-router'
+ </script>
+ <script>
+ import {checkLoginStatus, getToken, logIn, logOut} from "./store/auth";
+
+ export default {
+   data: function() {
+     return {
+       userSearchResult: [],
+       users: [],
+       errormsg: null,
+       loading: false,
+       username: "",
+       password: "",
+       checkLogin: false,
+       searchQuery: "", // Input for searching users
+     }
+   },
+   methods: {
+     async findUser() {
+       if (!this.searchQuery) {
+         alert("Please enter a username to search.");
+         return;
+       }
+
+       try {
+         let response = await this.$axios.get(`/get-users?search=${this.searchQuery}`);
+
+         this.userSearchResult = response.data['users'];
+       } catch (error) {
+         console.error("Error fetching users:", error);
+         this.userSearchResult = [];
+       }
+     },
+
+     async login() {
+       this.loading = true;
+       this.errormsg = null;
+       try {
+         let response = await this.$axios.post("/login", {
+           username: this.username,
+           password: this.password,
+         });
+         logIn(response.data['token'])
+         window.location.reload();
+       } catch (e) {
+         this.errormsg = "Login failed. Please check your credentials.";
+       }
+       this.loading = false;
+     },
+     async fetchConversations() {
+       try {
+         let response = await this.$axios.post('/get-conversations', {
+           token: getToken()
+         });
+
+         this.users = response.data;
+         console.log(this.users)
+       } catch (error) {
+         console.error('Error fetching conversations:', error);
+       }
+     },
+     logout() {
+       logOut()
+       window.location.reload();
+     }
+   },
+   mounted() {
+     this.checkLogin = checkLoginStatus()
+     this.fetchConversations();
+   }
+ }
+ </script>
 
   <style>
   .login-container {
@@ -172,5 +207,40 @@
     width: 15px; /* Increase the size of the icon */
     height: 15px; /* Increase the size of the icon */
     margin-right: 10px; /* Increase space between the icon and text */
+  }
+
+  .conversations {
+    padding: 20px;
+  }
+  .user-finder {
+    margin-bottom: 20px;
+    display: flex;
+    gap: 10px;
+  }
+  .search-bar {
+    flex: 1;
+    padding: 8px;
+  }
+  .search-button {
+    padding: 4px 8px;
+    font-size: 0.9rem;
+  }
+  .search-results {
+    margin-bottom: 20px;
+  }
+  .conversation-item,
+  .search-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .profile-photo {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+  }
+  .user-details {
+    flex: 1;
   }
   </style>
