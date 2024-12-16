@@ -8,32 +8,14 @@ import (
 func (h *Handler) InitRoutes() http.Handler {
 	mux := http.NewServeMux()
 
-	// Маршруты для healthcheck
-	mux.HandleFunc("/health/alive", healthcheck)
-	mux.HandleFunc("/health/ready", healthcheck)
-	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost {
-			h.doLogin(w, r)
-		} else {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
-
-	mux.HandleFunc("/get-conversations", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost {
-			h.getConversations(w, r)
-		} else {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
-
-	mux.HandleFunc("/get-users", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			h.getUsers(w, r)
-		} else {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
+	// Wrap handlers with the logging middleware
+	mux.Handle("/health/alive", logRequests(http.HandlerFunc(healthcheck)))
+	mux.Handle("/health/ready", logRequests(http.HandlerFunc(healthcheck)))
+	mux.Handle("/login", logRequests(handleRequest(http.MethodPost, h.doLogin)))
+	mux.Handle("/get-conversations", logRequests(parseUserTokenMiddleware(handleRequest(http.MethodPost, h.getConversations))))
+	mux.Handle("/get-users", logRequests(handleRequest(http.MethodGet, h.getUsers)))
+	mux.Handle("/get-messages", logRequests(parseUserTokenMiddleware(handleRequest(http.MethodPost, h.getMessages))))
+	mux.Handle("/send-message", logRequests(parseUserTokenMiddleware(handleRequest(http.MethodPost, h.sendMessage))))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		enableCORS(w, r)
@@ -42,7 +24,7 @@ func (h *Handler) InitRoutes() http.Handler {
 			return
 		}
 
-		// Используем зарегистрированные маршруты
+		// Use the registered routes
 		mux.ServeHTTP(w, r)
 	})
 }
@@ -62,4 +44,14 @@ func enableCORS(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+}
+
+func handleRequest(method string, handlerFunc http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == method {
+			handlerFunc(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	}
 }

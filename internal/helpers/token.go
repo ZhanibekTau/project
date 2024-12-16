@@ -9,10 +9,6 @@ import (
 	"time"
 )
 
-type TokenRequest struct {
-	Token string `json:"token"`
-}
-
 type tokenClaims struct {
 	jwt.StandardClaims
 	UserId uint `json:"id"`

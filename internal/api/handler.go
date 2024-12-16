@@ -19,13 +19,13 @@ func NewHandler(services *service.Service) *Handler {
 func (h *Handler) doLogin(w http.ResponseWriter, r *http.Request) {
 	var input model.User
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
 		return
 	}
 
 	token, err := h.services.CreateOrUpdateUser(&input)
 	if err != nil {
-		http.Error(w, "Failed to retrieve string", http.StatusBadRequest)
+		helpers.HandleError(w, helpers.NewAPIError("Failed to retrieve token", http.StatusBadRequest))
 		return
 	}
 
@@ -34,26 +34,17 @@ func (h *Handler) doLogin(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(w).Encode(res)
 	if err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		helpers.HandleError(w, helpers.NewAPIError("Failed to encode response", http.StatusBadRequest))
+		return
 	}
 }
 
 func (h *Handler) getConversations(w http.ResponseWriter, r *http.Request) {
-	var token helpers.TokenRequest
-	if err := json.NewDecoder(r.Body).Decode(&token); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	userId, err := helpers.ParseUserToken(token.Token)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
+	userId := r.Context().Value("userId").(uint)
 
 	users, err := h.services.GetConversations(userId)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
 		return
 	}
 
@@ -62,20 +53,21 @@ func (h *Handler) getConversations(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(w).Encode(res)
 	if err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
+		return
 	}
 }
 
 func (h *Handler) getUsers(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("search")
 	if query == "" {
-		http.Error(w, "Search query is required", http.StatusBadRequest)
+		helpers.HandleError(w, helpers.NewAPIError("Search query is required", http.StatusBadRequest))
 		return
 	}
 
 	users, err := h.services.GetUsers(query)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
 		return
 	}
 
@@ -84,6 +76,57 @@ func (h *Handler) getUsers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(w).Encode(res)
 	if err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
+		return
+	}
+}
+
+func (h *Handler) getMessages(w http.ResponseWriter, r *http.Request) {
+	var convUserId helpers.GetMessagesRequest
+	if err := json.NewDecoder(r.Body).Decode(&convUserId); err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
+		return
+	}
+
+	userId := r.Context().Value("userId").(uint)
+
+	messages, err := h.services.GetMessages(userId, convUserId.UserId)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
+		return
+	}
+
+	res := map[string][]helpers.MessagesResponse{"messages": *messages}
+
+	w.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(res)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
+		return
+	}
+}
+
+func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
+	var input helpers.SendMessageRequest
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusUnprocessableEntity))
+		return
+	}
+
+	userId := r.Context().Value("userId").(uint)
+
+	result, err := h.services.SendMessage(userId, &input)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
+		return
+	}
+
+	res := map[string]bool{"success": result}
+
+	w.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(res)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
+		return
 	}
 }

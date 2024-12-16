@@ -47,8 +47,6 @@
           <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
             <div class="position-sticky pt-3 sidebar-sticky">
               <div class="conversations">
-                <h5>Your Conversations:</h5>
-
                 <!-- Search Bar -->
                 <div class="user-finder">
                   <input
@@ -63,23 +61,25 @@
                 <!-- Search Results -->
                 <div v-if="userSearchResult.length" class="search-results">
                   <ul>
-                    <li v-for="user in userSearchResult" :key="user.id" class="search-item">
+                    <li v-for="user in userSearchResult" :key="user.ID" class="search-item">
                       <img :src="user.profile_photo_url" alt="Profile" class="profile-photo" />
                       <div class="user-details">
-                        <h5>{{ user.username }}</h5>
-                        <button @click="startConversation(user.id)">Start Conversation</button>
+                        <h5>{{ user.Username }}</h5>
+                        <button @click="startConversation(user)">Open Chat</button>
                       </div>
                     </li>
                   </ul>
                 </div>
                 <p v-else-if="searchQuery">No users found!</p>
+                
+                <h5>Your Conversations:</h5>
 
                 <ul v-if="users.length">
-                  <li v-for="user in users" :key="user.id" class="conversation-item">
+                  <li v-for="user in users" :key="user.ID" class="conversation-item">
                     <img :src="user.profile_photo_url" alt="Profile" class="profile-photo" />
                     <div class="user-details">
-                      <h5>{{ user.username }}</h5>
-                      <button @click="openConversation(user.id)">Open Chat</button>
+                      <h5>{{ user.Username }}</h5>
+                      <button @click="startConversation(user)">Open Chat</button>
                     </div>
                   </li>
                 </ul>
@@ -132,6 +132,7 @@
          let response = await this.$axios.get(`/get-users?search=${this.searchQuery}`);
 
          this.userSearchResult = response.data['users'];
+         console.log(this.userSearchResult, "USER")
        } catch (error) {
          console.error("Error fetching users:", error);
          this.userSearchResult = [];
@@ -155,15 +156,35 @@
      },
      async fetchConversations() {
        try {
-         let response = await this.$axios.post('/get-conversations', {
-           token: getToken()
+         let response = await this.$axios.post('/get-conversations', null, {
+           headers: {
+             'Authorization': `Bearer ${getToken()}`
+           }
          });
 
-         this.users = response.data;
+         this.users = response.data['users'];
          console.log(this.users)
        } catch (error) {
-         console.error('Error fetching conversations:', error);
+         if (error.response) {
+           if (error.response.status === 401) {
+             console.error('Unauthorized: Token may be invalid or expired.');
+             localStorage.removeItem('authToken');
+           } else {
+             console.error('Error fetching conversations:', error.response.data);
+           }
+         } else if (error.request) {
+           console.error('No response received:', error.request);
+         } else {
+           console.error('Error setting up request:', error.message);
+         }
        }
+     },
+     startConversation(user) {
+       if (!user) {
+         console.error('Missing user ID. Cannot navigate to conversation.');
+         return;
+       }
+       this.$router.push({ name: 'Conversation', params: { id: user.ID }, query: { user: JSON.stringify(user) }});
      },
      logout() {
        logOut()
@@ -218,10 +239,10 @@
     gap: 10px;
   }
   .search-bar {
-    flex: 1;
-    padding: 8px;
+    width: 80%
   }
   .search-button {
+    display: flex;
     padding: 4px 8px;
     font-size: 0.9rem;
   }
