@@ -36,14 +36,24 @@
 
 <script>
 import {getToken} from "../store/auth";
+import {initializeWebSocket} from "../services/socket";
 
 export default {
   data() {
     return {
+      socket: null,
       userInfo: {},
       messages: [],
       newMessage: "",
     };
+  },
+  created() {
+    this.socket = initializeWebSocket(this);
+  },
+  beforeDestroy() {
+    if (this.socket) {
+      this.socket.close();
+    }
   },
   methods: {
     goBack() {

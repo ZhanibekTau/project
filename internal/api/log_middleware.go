@@ -1,7 +1,10 @@
 package api
 
 import (
+	"bufio"
+	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"project/internal/consts"
 	"time"
@@ -43,8 +46,10 @@ type loggingResponseWriter struct {
 
 // Переопределение метода WriteHeader для захвата статуса
 func (lrw *loggingResponseWriter) WriteHeader(code int) {
-	lrw.statusCode = code
-	lrw.ResponseWriter.WriteHeader(code)
+	if lrw.statusCode == 0 {
+		lrw.statusCode = code
+		lrw.ResponseWriter.WriteHeader(code)
+	}
 }
 
 // Переопределение метода Write для захвата размера контента
@@ -52,4 +57,23 @@ func (lrw *loggingResponseWriter) Write(b []byte) (int, error) {
 	size, err := lrw.ResponseWriter.Write(b)
 	lrw.size += size
 	return size, err
+}
+
+func (lrw *loggingResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hj, ok := lrw.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, fmt.Errorf("the hijacker interface is not supported")
+	}
+
+	return hj.Hijack()
+}
+
+func (lrw *loggingResponseWriter) Flush() {
+	if fl, ok := lrw.ResponseWriter.(http.Flusher); ok {
+		if lrw.statusCode == 0 {
+			lrw.WriteHeader(http.StatusOK)
+		}
+
+		fl.Flush()
+	}
 }

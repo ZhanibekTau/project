@@ -121,6 +121,20 @@ func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Проверяем, есть ли активное WebSocket-соединение для получателя
+	receiverConn, exists := connections[input.ToUserId]
+	if exists {
+		message := map[string]interface{}{
+			"message": input.Text,
+			"sender":  userId,
+		}
+		err = receiverConn.WriteJSON(message)
+		if err != nil {
+			// Если отправка не удалась, логируем ошибку
+			delete(connections, input.ToUserId)
+		}
+	}
+
 	res := map[string]bool{"success": result}
 
 	w.Header().Set("Content-Type", "application/json")

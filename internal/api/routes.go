@@ -11,6 +11,7 @@ func (h *Handler) InitRoutes() http.Handler {
 	// Wrap handlers with the logging middleware
 	mux.Handle("/health/alive", logRequests(http.HandlerFunc(healthcheck)))
 	mux.Handle("/health/ready", logRequests(http.HandlerFunc(healthcheck)))
+	mux.Handle("/ws", logRequests(parseUserTokenMiddleware(handleRequest(http.MethodGet, h.WebSocketHandler))))
 	mux.Handle("/login", logRequests(handleRequest(http.MethodPost, h.doLogin)))
 	mux.Handle("/get-conversations", logRequests(parseUserTokenMiddleware(handleRequest(http.MethodPost, h.getConversations))))
 	mux.Handle("/get-users", logRequests(handleRequest(http.MethodGet, h.getUsers)))
@@ -41,9 +42,13 @@ func healthcheck(w http.ResponseWriter, r *http.Request) {
 }
 
 func enableCORS(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	origin := r.Header.Get("Origin")
+	if origin != "" {
+		w.Header().Set("Access-Control-Allow-Origin", origin) // Используйте конкретные домены вместо "*"
+	}
 	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	w.Header().Set("Access-Control-Allow-Credentials", "true") // Если используете сессии
 }
 
 func handleRequest(method string, handlerFunc http.HandlerFunc) http.HandlerFunc {
