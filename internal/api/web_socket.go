@@ -7,16 +7,16 @@ import (
 	"sync"
 )
 
-var mu sync.Mutex
-
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true // Убедитесь, что правильно обрабатываете CORS
-	},
+	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-// Хранилище активных соединений
-var connections = make(map[uint]*websocket.Conn) // Map userID -> WebSocket connection
+// Хранилище соединений и групп
+var (
+	connections = make(map[uint]*websocket.Conn) // userID -> WebSocket connection
+	groups      = make(map[uint][]uint)          // groupID -> []userIDs
+	mu          sync.Mutex                       // Mutex для безопасного доступа
+)
 
 func (h *Handler) WebSocketHandler(w http.ResponseWriter, r *http.Request) {
 	userId := r.Context().Value("userId").(uint) // Получаем userId из контекста

@@ -5,6 +5,7 @@ import (
 	"github.com/jinzhu/gorm"
 	"log"
 	"project/cmd/database/model"
+	"project/internal/helpers"
 	"strings"
 )
 
@@ -42,7 +43,7 @@ func (r *Repository) GetUser(user *model.User) (*model.User, error) {
 	return user, nil
 }
 
-func (r *Repository) GetConversations(userId uint) (*[]model.User, error) {
+func (r *Repository) GetConversationsUsers(userId uint) (*[]model.User, error) {
 	var users []model.User
 
 	if err := r.database.Raw(`
@@ -57,10 +58,25 @@ func (r *Repository) GetConversations(userId uint) (*[]model.User, error) {
 	return &users, nil
 }
 
-func (r *Repository) GetUsers(query string) (*[]model.User, error) {
+func (r *Repository) GetGroups(userId uint) (*[]model.Group, error) {
+	var groups []model.Group
+
+	// Исправленный запрос
+	if err := r.database.Raw(`
+        SELECT DISTINCT g.*
+        FROM groups g
+        JOIN group_members gm ON g.id = gm.group_id
+        WHERE gm.user_id = ? OR gm.added_by = ?`, userId, userId).Scan(&groups).Error; err != nil {
+		return nil, err
+	}
+
+	return &groups, nil
+}
+
+func (r *Repository) GetUsers(query string, userId uint) (*[]model.User, error) {
 	var users []model.User
 
-	if err := r.database.Where("LOWER(username) LIKE ?", "%"+strings.ToLower(query)+"%").Find(&users).Error; err != nil {
+	if err := r.database.Where("LOWER(username) LIKE ? AND id != ?", "%"+strings.ToLower(query)+"%", userId).Find(&users).Error; err != nil {
 		return nil, err
 	}
 
@@ -123,7 +139,6 @@ func (r *Repository) CheckConversation(user1Id, user2Id uint) (*model.Conversati
 			user2 := model.User{ID: user2Id}
 
 			conv = model.Conversation{
-				IsGroup: false,
 				User1ID: &user1.ID,
 				User2ID: &user2.ID,
 			}
@@ -134,4 +149,33 @@ func (r *Repository) CheckConversation(user1Id, user2Id uint) (*model.Conversati
 	}
 
 	return &conv, nil
+}
+
+func (r *Repository) CreateGroup(payload *helpers.CreateGroupRequest, userId uint) (*model.Group, error) {
+	var group model.Group
+	group.CreatedBy = userId
+	group.Name = payload.GroupName
+
+	result := r.database.Create(&group)
+	if result.Error != nil {
+		msg := result.Error
+		return nil, msg
+	}
+
+	return &group, nil
+}
+
+func (r *Repository) CreateGroupMembers(userId, addedById, groupId uint) (bool, error) {
+	var groupMember model.GroupMember
+	groupMember.GroupID = groupId
+	groupMember.UserID = userId
+	groupMember.AddedBy = addedById
+
+	result := r.database.Create(&groupMember)
+	if result.Error != nil {
+		msg := result.Error
+		return false, msg
+	}
+
+	return true, nil
 }

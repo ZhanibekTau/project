@@ -4,8 +4,6 @@ import "time"
 
 type Conversation struct {
 	ID        uint `gorm:"primaryKey"`
-	IsGroup   bool `gorm:"not null"`
-	GroupID   *uint
 	User1ID   *uint
 	User2ID   *uint
 	CreatedAt time.Time  `json:"created_at"`

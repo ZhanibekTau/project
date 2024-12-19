@@ -38,12 +38,26 @@ func (s *Service) CreateOrUpdateUser(user *model.User) (string, error) {
 	return helpers.GenerateSessionToken(existUser)
 }
 
-func (s *Service) GetConversations(userId uint) (*[]model.User, error) {
-	return s.Repository.GetConversations(userId)
+func (s *Service) GetConversations(userId uint) (map[string]interface{}, error) {
+	res := make(map[string]interface{})
+	users, err := s.Repository.GetConversationsUsers(userId)
+	if err != nil {
+		return nil, err
+	}
+
+	groups, err := s.Repository.GetGroups(userId)
+	if err != nil {
+		return nil, err
+	}
+
+	res["users"] = users
+	res["groups"] = groups
+
+	return res, nil
 }
 
-func (s *Service) GetUsers(query string) (*[]model.User, error) {
-	return s.Repository.GetUsers(query)
+func (s *Service) GetUsers(query string, userId uint) (*[]model.User, error) {
+	return s.Repository.GetUsers(query, userId)
 }
 
 func (s *Service) ValidateUser(user *model.User) (string, error) {
@@ -88,4 +102,20 @@ func (s *Service) SendMessage(userId uint, input *helpers.SendMessageRequest) (b
 	}
 
 	return s.Repository.CreateMessage(&message)
+}
+
+func (s *Service) CreateGroups(payload *helpers.CreateGroupRequest, addedById uint) (bool, error) {
+	group, err := s.Repository.CreateGroup(payload, addedById)
+	if err != nil {
+		return false, err
+	}
+
+	for _, user := range payload.Users {
+		_, err = s.Repository.CreateGroupMembers(user.ID, addedById, group.ID)
+		if err != nil {
+			return false, err
+		}
+	}
+
+	return true, nil
 }

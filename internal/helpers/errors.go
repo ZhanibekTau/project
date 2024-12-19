@@ -26,11 +26,14 @@ func NewAPIError(message string, statusCode int) *APIError {
 func HandleError(w http.ResponseWriter, err error) {
 	var apiErr *APIError
 	if ok := errors.As(err, &apiErr); ok {
+		fmt.Printf("Error: %s\n", apiErr.StatusCode)
 		// Custom API error
+		w.WriteHeader(apiErr.StatusCode)
 		http.Error(w, apiErr.Message, apiErr.StatusCode)
 		log.Printf("%sError: %s%s", consts.Red, apiErr.Error(), consts.Reset)
 	} else {
 		// Internal server error for unexpected errors
+		w.WriteHeader(http.StatusInternalServerError)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		log.Printf("Unexpected Error: %s", err.Error())
 	}

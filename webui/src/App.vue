@@ -54,8 +54,9 @@
                       v-model="searchQuery"
                       placeholder="Search for a user to start a conversation"
                       class="search-bar"
+                      @input="findUser"
                   />
-                  <button @click="findUser" class="search-button">Find</button>
+<!--                  <button @click.prevent="findUser" class="search-button">Find</button>-->
                 </div>
 
                 <!-- Search Results -->
@@ -74,17 +75,39 @@
                 
                 <h5>Your Conversations:</h5>
 
+                <!-- User Conversations -->
                 <ul v-if="users.length">
                   <li v-for="user in users" :key="user.ID" class="conversation-item">
-                    <img :src="user.profile_photo_url" alt="Profile" class="profile-photo" />
+                    <img :src="user.ProfilePhotoURL" alt="Profile" class="profile-photo" />
                     <div class="user-details">
                       <h5>{{ user.Username }}</h5>
                       <button @click="startConversation(user)">Open Chat</button>
                     </div>
                   </li>
                 </ul>
-                <p v-else>No conversations yet!</p>
+                <h5>Your Groups:</h5>
+
+                <!-- Group Conversations -->
+                <ul v-if="groups.length">
+                  <li v-for="group in groups" :key="group.ID" class="conversation-item">
+                    <img :src="group.GroupPhotoURL" alt="Group Profile" class="profile-photo" />
+                    <div class="user-details">
+                      <h5>{{ group.Name }}</h5>
+                      <button @click="startConversation(group)">Open Chat</button>
+                    </div>
+                  </li>
+                </ul>
+
+                <!-- Fallback message -->
+                <p v-if="!users.length && !groups.length">No conversations yet!</p>
               </div>
+              <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted text-uppercase">
+                <button @click="createGroup" class="nav-link logout-btn">
+                  <svg class="feather"><use href="/feather-sprite-v4.29.0.svg#log-out"/></svg>
+                  Create Group
+                </button>
+              </h6>
+
               <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted text-uppercase">
                   <button @click="logout" class="nav-link logout-btn">
                     <svg class="feather"><use href="/feather-sprite-v4.29.0.svg#log-out"/></svg>
@@ -113,6 +136,7 @@
      return {
        userSearchResult: [],
        users: [],
+       groups:[],
        errormsg: null,
        loading: false,
        username: "",
@@ -124,12 +148,16 @@
    methods: {
      async findUser() {
        if (!this.searchQuery) {
-         alert("Please enter a username to search.");
+         this.userSearchResult = [];
          return;
        }
 
        try {
-         let response = await this.$axios.get(`/get-users?search=${this.searchQuery}`);
+         let response = await this.$axios.get(`/get-users?search=${this.searchQuery}`, {
+           headers: {
+             'Authorization': `Bearer ${getToken()}`
+           }
+         });
 
          this.userSearchResult = response.data['users'];
          console.log(this.userSearchResult, "USER")
@@ -162,9 +190,11 @@
            }
          });
 
-         this.users = response.data['users'];
-         console.log(this.users)
+         this.users = response.data['result']['users'];
+         this.groups = response.data['result']['groups'];
+
        } catch (error) {
+         console.log(error, "ERROR")
          if (error.response) {
            if (error.response.status === 401) {
              console.error('Unauthorized: Token may be invalid or expired.');
@@ -179,16 +209,33 @@
          }
        }
      },
-     startConversation(user) {
-       if (!user) {
+     startConversation(userOrGroup) {
+       if (!userOrGroup) {
          console.error('Missing user ID. Cannot navigate to conversation.');
          return;
        }
-       this.$router.push({ name: 'Conversation', params: { id: user.ID }, query: { user: JSON.stringify(user) }});
+
+       const isGroup = userOrGroup.Name !== undefined;
+
+
+       // Собираем URL вручную
+       const entity = encodeURIComponent(JSON.stringify(userOrGroup));
+       const isGroupParam = isGroup ? 'true' : 'false';
+
+       // Изменяем URL
+       window.location.href = `#/conversation?entity=${entity}&isGroup=${isGroupParam}`;
+
+       // Принудительная перезагрузка страницы
+       window.location.reload();
      },
      logout() {
        logOut()
        window.location.reload();
+     },
+     createGroup() {
+       this.$router.push({
+         name: 'CreateGroup',
+       });
      }
    },
    mounted() {

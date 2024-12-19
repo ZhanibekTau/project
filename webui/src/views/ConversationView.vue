@@ -6,7 +6,7 @@
         ←
       </div>
       <div class="chat-title">
-        {{ userInfo.Username }}
+        {{ userInfo.Username ?? groupInfo.Name }}
       </div>
     </header>
 
@@ -43,6 +43,7 @@ export default {
     return {
       socket: null,
       userInfo: {},
+      groupInfo: {},
       messages: [],
       newMessage: "",
     };
@@ -59,22 +60,23 @@ export default {
     goBack() {
       this.$router.push("/");
     },
-    async getMessages(userId) {
+    async getMessages(id) {
+      const isGroup = this.groupInfo.ID === id;
+
       try {
         let response = await this.$axios.post('/get-messages', {
-          userId:  userId
+          id: id,
+          isGroup: isGroup
         }, {
           headers: {
             'Authorization': `Bearer ${getToken()}`
           }
         });
 
-          this.messages = response.data['messages'].map(message => {
-            return {
-              message: message.message,
-              isSent: message.user_id !== this.userInfo.ID
-            };
-          });
+        this.messages = response.data['messages'].map(message => ({
+          message: message.message,
+          isSent: message.user_id !== this.userInfo.ID
+        }));
       } catch (error) {
         if (error.response) {
           if (error.response.status === 401) {
@@ -92,7 +94,12 @@ export default {
     },
     sendMessage() {
       if (this.newMessage.trim()) {
-        const messageToSend = { message: this.newMessage, isSent: true };
+        const isGroup = !!this.groupInfo.ID;
+        const messageToSend = {
+          message: this.newMessage,
+          isSent: true,
+          isGroup: isGroup,
+        };
 
         this.messages.push(messageToSend);
 
@@ -111,6 +118,7 @@ export default {
         const response = await this.$axios.post('/send-message', {
           text: message.message,
           toUserId: this.userInfo.ID,
+          isGroup:message.isGroup,
         }, {
           headers: {
             'Authorization': `Bearer ${getToken()}`
@@ -125,16 +133,28 @@ export default {
     },
   },
   mounted() {
-    if (this.$route.query.user) {
+    if (this.$route.query.entity) {
       try {
-        this.userInfo = JSON.parse(this.$route.query.user);
+        const entity = JSON.parse(this.$route.query.entity);
+        const isGroup = this.$route.query.isGroup === "true";
+
+        if (isGroup) {
+          this.groupInfo = entity;
+        } else {
+          this.userInfo = entity;
+        }
       } catch (error) {
-        console.error('Error parsing user data:', error);
+        console.error('Error parsing conversation data:', error);
       }
     }
   },
   watch: {
     userInfo(newValue) {
+      if (newValue && newValue.ID) {
+        this.getMessages(newValue.ID);
+      }
+    },
+    groupInfo(newValue) {
       if (newValue && newValue.ID) {
         this.getMessages(newValue.ID);
       }

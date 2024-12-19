@@ -42,13 +42,15 @@ func (h *Handler) doLogin(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) getConversations(w http.ResponseWriter, r *http.Request) {
 	userId := r.Context().Value("userId").(uint)
 
-	users, err := h.services.GetConversations(userId)
+	info, err := h.services.GetConversations(userId)
 	if err != nil {
 		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
 		return
 	}
-
-	res := map[string][]model.User{"users": *users}
+	
+	res := map[string]interface{}{
+		"result": info,
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(w).Encode(res)
@@ -59,13 +61,15 @@ func (h *Handler) getConversations(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getUsers(w http.ResponseWriter, r *http.Request) {
+	userId := r.Context().Value("userId").(uint)
+
 	query := r.URL.Query().Get("search")
 	if query == "" {
 		helpers.HandleError(w, helpers.NewAPIError("Search query is required", http.StatusBadRequest))
 		return
 	}
 
-	users, err := h.services.GetUsers(query)
+	users, err := h.services.GetUsers(query, userId)
 	if err != nil {
 		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
 		return
@@ -133,6 +137,30 @@ func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 			// Если отправка не удалась, логируем ошибку
 			delete(connections, input.ToUserId)
 		}
+	}
+
+	res := map[string]bool{"success": result}
+
+	w.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(res)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
+		return
+	}
+}
+
+func (h *Handler) createGroup(w http.ResponseWriter, r *http.Request) {
+	var input helpers.CreateGroupRequest
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusUnprocessableEntity))
+		return
+	}
+	userId := r.Context().Value("userId").(uint)
+
+	result, err := h.services.CreateGroups(&input, userId)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusUnprocessableEntity))
+		return
 	}
 
 	res := map[string]bool{"success": result}
