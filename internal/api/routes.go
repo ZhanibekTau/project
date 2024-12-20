@@ -18,6 +18,8 @@ func (h *Handler) InitRoutes() http.Handler {
 	mux.Handle("/get-messages", logRequests(parseUserTokenMiddleware(handleRequest(http.MethodPost, h.getMessages))))
 	mux.Handle("/send-message", logRequests(parseUserTokenMiddleware(handleRequest(http.MethodPost, h.sendMessage))))
 	mux.Handle("/create-group", logRequests(parseUserTokenMiddleware(handleRequest(http.MethodPost, h.createGroup))))
+	mux.Handle("/upload-profile-picture", logRequests(parseUserTokenMiddleware(handleRequest(http.MethodPost, h.uploadProfilePicture))))
+	mux.Handle("/leave-group", logRequests(parseUserTokenMiddleware(handleRequest(http.MethodPost, h.leaveGroup))))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		enableCORS(w, r)

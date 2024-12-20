@@ -1,4 +1,4 @@
-<template>
+<template xmlns="http://www.w3.org/1999/html">
   <div class="conversation-page">
     <!-- Header -->
     <header class="chat-header">
@@ -7,6 +7,11 @@
       </div>
       <div class="chat-title">
         {{ userInfo.Username ?? groupInfo.Name }}
+      </div>
+      <div v-if="groupInfo && groupInfo.Name">
+        <div class="add-user-button" @click="addUsers">
+          +
+        </div>
       </div>
     </header>
 
@@ -44,12 +49,59 @@
       />
       <button @click="sendMessage">Send</button>
     </div>
+
+    <div v-if="isModalVisible" class="modal">
+      <form @submit.prevent="addNewUsers">
+
+        <div class="modal-content">
+          <h3>Invite Users</h3>
+          <div class="user-finder">
+            <input
+                type="text"
+                v-model="searchQuery"
+                placeholder="Search for a user to start a conversation"
+                class="search-bar"
+                @input="findUsers"
+            />
+          </div>
+
+          <div v-if="userSearchResult.length" class="search-results">
+            <ul>
+              <li v-for="user in userSearchResult" :key="user.ID" class="search-item">
+                <img :src="getProfileImage(user.ProfilePhotoURL)" alt="Profile" class="profile-photo" />
+                <div class="user-details">
+                  <h5>{{ user.Username }}</h5>
+                  <button type="button" @click="addUserToGroup(user)">Add to Group</button>
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          <div v-if="selectedUsers.length" class="selected-users">
+            <h4>Selected Users</h4>
+            <ul>
+              <li v-for="user in selectedUsers" :key="user.ID" class="selected-user-item">
+                <img :src="getProfileImage(user.ProfilePhotoURL)" alt="Profile" class="profile-photo" />
+                <div class="user-details">
+                  <h5>{{ user.Username }}</h5>
+                  <button type="button" @click="removeUserFromGroup(user)">Remove</button>
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          <button @click="closeModal">Close</button>
+        </div>
+        <button type="submit">Create Group</button>
+      </form>
+    </div>
   </div>
 </template>
 
 <script>
 import {getId, getToken} from "../store/auth";
 import {initializeWebSocket} from "../services/socket";
+import {getProfileImage} from "../store/helpers";
 
 export default {
   data() {
@@ -59,6 +111,10 @@ export default {
       groupInfo: {},
       messages: [],
       newMessage: "",
+      isModalVisible: false,
+      searchQuery: '',
+      userSearchResult: [],
+      selectedUsers: [],
     };
   },
   beforeDestroy() {
@@ -67,6 +123,7 @@ export default {
     }
   },
   methods: {
+    getProfileImage,
     initializeSocket() {
       if (this.groupInfo && this.groupInfo.ID) {
         this.socket = initializeWebSocket(this, this.groupInfo.ID);
@@ -156,6 +213,58 @@ export default {
         this.messages.pop();
       }
     },
+    addUserToGroup(user) {
+      if (!this.selectedUsers.some(u => u.ID === user.ID)) {
+        this.selectedUsers.push(user);
+      }
+    },
+    removeUserFromGroup(user) {
+      this.selectedUsers = this.selectedUsers.filter(u => u.ID !== user.ID);
+    },
+    addUsers() {
+      this.isModalVisible = true;
+    },
+    closeModal() {
+      this.isModalVisible = false;
+    },
+    async findUsers() {
+      if (!this.searchQuery) {
+        this.userSearchResult = [];
+        return;
+      }
+
+      try {
+        let response = await this.$axios.get(`/get-users?search=${this.searchQuery}`, {
+          headers: {
+            'Authorization': `Bearer ${getToken()}`
+          }
+        });
+
+        this.userSearchResult = response.data.users;
+      } catch (error) {
+        console.error("Error fetching users:", error);
+        this.userSearchResult = [];
+      }
+    },
+    async addNewUsers() {
+      try {
+        const response = await this.$axios.post(
+            "/create-group",
+            {
+              groupName: this.groupName,
+              users: this.selectedUsers
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${getToken()}`,
+              },
+            }
+        );
+        this.isModalVisible = false;
+      } catch (error) {
+        console.error("Error add users to group:", error);
+      }
+    }
   },
   mounted() {
     if (this.$route.query.entity) {
@@ -294,5 +403,29 @@ export default {
   color: gray;
   text-align: left;
   margin-top: 5px;
+}
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  max-width: 500px;
+  width: 100%;
+}
+
+.search-results, .selected-users {
+  margin-top: 20px;
 }
 </style>

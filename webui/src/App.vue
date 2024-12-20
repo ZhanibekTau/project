@@ -46,6 +46,15 @@
         <div class="row">
           <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
             <div class="position-sticky pt-3 sidebar-sticky">
+              <div class="profile-picture-upload">
+                <h3>Upload Profile Picture</h3>
+                <input type="file" @change="onFileChange" accept="image/*" />
+                <button class="upload-button" @click="uploadImage" :disabled="!selectedFile">Upload</button>
+                <div v-if="previewUrl">
+                  <h4>Preview:</h4>
+                  <img :src="previewUrl" alt="Profile Preview" class="profile-preview" />
+                </div>
+              </div>
               <div class="conversations">
                 <!-- Search Bar -->
                 <div class="user-finder">
@@ -56,14 +65,13 @@
                       class="search-bar"
                       @input="findUser"
                   />
-<!--                  <button @click.prevent="findUser" class="search-button">Find</button>-->
                 </div>
 
                 <!-- Search Results -->
                 <div v-if="userSearchResult.length" class="search-results">
                   <ul>
                     <li v-for="user in userSearchResult" :key="user.ID" class="search-item">
-                      <img :src="user.profile_photo_url" alt="Profile" class="profile-photo" />
+                      <img :src="getProfileImage(user.ProfilePhotoURL)" alt="Profile" class="profile-photo" />
                       <div class="user-details">
                         <h5>{{ user.Username }}</h5>
                         <button @click="startConversation(user)">Open Chat</button>
@@ -78,7 +86,7 @@
                 <!-- User Conversations -->
                 <ul v-if="users.length">
                   <li v-for="user in users" :key="user.ID" class="conversation-item">
-                    <img :src="user.ProfilePhotoURL" alt="Profile" class="profile-photo" />
+                    <img :src="getProfileImage(user.ProfilePhotoURL)" alt="Profile" class="profile-photo" />
                     <div class="user-details">
                       <h5>{{ user.Username }}</h5>
                       <button @click="startConversation(user)">Open Chat</button>
@@ -90,10 +98,11 @@
                 <!-- Group Conversations -->
                 <ul v-if="groups.length">
                   <li v-for="group in groups" :key="group.ID" class="conversation-item">
-                    <img :src="group.GroupPhotoURL" alt="Group Profile" class="profile-photo" />
+                    <img :src="getProfileImage(group.GroupPhotoURL)" alt="Group Profile" class="profile-photo" />
                     <div class="user-details">
                       <h5>{{ group.Name }}</h5>
                       <button @click="startConversation(group)">Open Chat</button>
+                      <button @click="leaveGroup(group)">Leave Group</button>
                     </div>
                   </li>
                 </ul>
@@ -130,6 +139,7 @@
  </script>
  <script>
  import {checkLoginStatus, getToken, logIn, logOut} from "./store/auth";
+ import {getProfileImage} from "./store/helpers";
 
  export default {
    data: function() {
@@ -143,6 +153,8 @@
        password: "",
        checkLogin: false,
        searchQuery: "", // Input for searching users
+       selectedFile: null,
+       previewUrl: null,
      }
    },
    methods: {
@@ -236,6 +248,49 @@
        this.$router.push({
          name: 'CreateGroup',
        });
+     },
+     onFileChange(event) {
+       const file = event.target.files[0];
+       if (file) {
+         this.selectedFile = file;
+         this.previewUrl = URL.createObjectURL(file);
+       }
+     },
+     async uploadImage() {
+       const formData = new FormData();
+       formData.append("profile_picture", this.selectedFile);
+
+       try {
+         const response = await this.$axios.post("/upload-profile-picture", formData, {
+           headers: {
+             "Content-Type": "multipart/form-data",
+             Authorization: `Bearer ${getToken()}`,
+           },
+         });
+
+         console.log("Image uploaded:", response.data);
+         alert("Profile picture uploaded successfully!");
+         window.location.reload();
+       } catch (error) {
+         console.error("Error uploading image:", error);
+         alert("Failed to upload image.");
+       }
+     },
+     async leaveGroup(group) {
+       try {
+         await this.$axios.post("/leave-group",{
+            group:group
+         }, {
+           headers: {
+             Authorization: `Bearer ${getToken()}`,
+           },
+         });
+
+         window.location.reload();
+       } catch (error) {
+         console.error("Error uploading image:", error);
+         alert("Failed to upload image.");
+       }
      }
    },
    mounted() {
@@ -310,5 +365,17 @@
   }
   .user-details {
     flex: 1;
+  }
+  .profile-picture-upload {
+    margin: 25px;
+  }
+  .upload-button {
+    margin-top: 25px;
+    margin-bottom: 25px;
+  }
+  .profile-preview {
+    margin-top: 20px;
+    max-width: 150px;
+    border-radius: 50%;
   }
   </style>

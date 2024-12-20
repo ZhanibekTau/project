@@ -5,10 +5,13 @@
       <h3>Create Group</h3>
       <form @submit.prevent="createGroup">
         <div>
+          <label for="profilePhoto">Group Profile Photo:</label>
+          <input type="file" id="profilePhoto" @change="handleProfilePhotoUpload" />
+        </div>
+        <div>
           <label for="groupName">Group Name:</label>
           <input type="text" id="groupName" v-model="groupName" required />
         </div>
-
         <h3>Invite Users</h3>
         <div class="user-finder">
           <input
@@ -23,7 +26,7 @@
         <div v-if="userSearchResult.length" class="search-results">
           <ul>
             <li v-for="user in userSearchResult" :key="user.ID" class="search-item">
-              <img :src="user.profile_photo_url" alt="Profile" class="profile-photo" />
+              <img :src="getProfileImage(user.ProfilePhotoURL)" alt="Profile" class="profile-photo" />
               <div class="user-details">
                 <h5>{{ user.Username }}</h5>
                 <button type="button" @click="addUserToGroup(user)">Add to Group</button> <!-- Changed type to button -->
@@ -36,7 +39,7 @@
           <h4>Selected Users</h4>
           <ul>
             <li v-for="user in selectedUsers" :key="user.ID" class="selected-user-item">
-              <img :src="user.profile_photo_url" alt="Profile" class="profile-photo" />
+              <img :src="getProfileImage(user.ProfilePhotoURL)" alt="Profile" class="profile-photo" />
               <div class="user-details">
                 <h5>{{ user.Username }}</h5>
                 <button type="button" @click="removeUserFromGroup(user)">Remove</button> <!-- Changed type to button -->
@@ -57,6 +60,7 @@
 <script>
 import axios from "axios";
 import {getToken} from "../store/auth";
+import {getProfileImage} from "../store/helpers";
 
 export default {
   data() {
@@ -65,9 +69,11 @@ export default {
       userSearchResult: [], // Результаты поиска пользователей
       groupName: "", // Название группы
       selectedUsers: [], // Массив выбранных пользователей
+      profilePhoto: null,
     };
   },
   methods: {
+    getProfileImage,
     // Поиск пользователей
     async findUsers() {
       if (!this.searchQuery) {
@@ -96,41 +102,35 @@ export default {
         this.selectedUsers.push(user);
       }
     },
-
-    // Удалить пользователя из группы
     removeUserFromGroup(user) {
       this.selectedUsers = this.selectedUsers.filter((u) => u.ID !== user.ID);
     },
-
-    // Создание группы и добавление выбранных пользователей
+    handleProfilePhotoUpload(event) {
+      this.profilePhoto = event.target.files[0]; // Store the selected file
+    },
     async createGroup() {
       if (!this.groupName || this.selectedUsers.length === 0) {
         alert("Please provide a group name and invite at least one user.");
         return;
       }
 
+      const formData = new FormData();
+      formData.append("groupName", this.groupName);
+      formData.append("selectedUsers", JSON.stringify(this.selectedUsers));
+
+      if (this.profilePhoto) {
+        formData.append("profilePhoto", this.profilePhoto);
+      }
+
       try {
-        const response = await this.$axios.post(
-            "/create-group",
-            {
-              groupName: this.groupName,
-              users: this.selectedUsers
-            },
-            {
-              headers: {
-                Authorization: `Bearer ${getToken()}`,
-              },
-            }
-        );
+        const response = await this.$axios.post("/create-group", formData, {
+          headers: {
+            Authorization: `Bearer ${getToken()}`,
+            "Content-Type": "multipart/form-data",
+          },
+        });
 
-        const createdGroup = response.data['group'];
-
-        // Собираем URL вручную
-        const entity = encodeURIComponent(JSON.stringify(createdGroup));
-        const isGroupParam = 'true'
-
-        // Изменяем URL
-        window.location.href = `#/conversation?entity=${entity}&isGroup=${isGroupParam}`;
+        window.location.reload();
       } catch (error) {
         console.error("Error creating group:", error);
       }

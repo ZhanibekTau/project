@@ -15,6 +15,11 @@ type SendMessageRequest struct {
 }
 
 type CreateGroupRequest struct {
-	GroupName string       `json:"groupName"`
-	Users     []model.User `json:"users"`
+	GroupName      string       `json:"groupName"`
+	GroupPhotoPath string       `json:"groupPhotoPath"`
+	Users          []model.User `json:"users"`
+}
+
+type GroupRequest struct {
+	Group model.Group `json:"group"`
 }

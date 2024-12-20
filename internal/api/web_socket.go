@@ -1,7 +1,6 @@
 package api
 
 import (
-	"fmt"
 	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
@@ -25,7 +24,6 @@ func (h *Handler) WebSocketHandler(w http.ResponseWriter, r *http.Request) {
 	userId := r.Context().Value("userId").(uint) // Получаем userId из контекста
 	groupIdStr := r.URL.Query().Get("groupId")
 	if groupIdStr != "" {
-		fmt.Println(groupIdStr, "assssssssssssssss")
 		groupId, err := strconv.ParseUint(groupIdStr, 10, 32) // Преобразуем строку в uint
 		if err != nil {
 			log.Println("Невозможно преобразовать groupId в uint:", err)

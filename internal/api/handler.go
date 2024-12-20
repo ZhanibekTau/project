@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"project/cmd/database/model"
 	"project/internal/helpers"
@@ -153,14 +152,50 @@ func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createGroup(w http.ResponseWriter, r *http.Request) {
-	var input helpers.CreateGroupRequest
-	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusUnprocessableEntity))
-		return
-	}
 	userId := r.Context().Value("userId").(uint)
 
-	result, err := h.services.CreateGroups(&input, userId)
+	err := r.ParseMultipartForm(10 << 20) // Limit file size to 10MB
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError("Unable to parse form data", http.StatusUnprocessableEntity))
+		return
+	}
+
+	groupName := r.FormValue("groupName")
+	if groupName == "" {
+		helpers.HandleError(w, helpers.NewAPIError("Group name is required", http.StatusBadRequest))
+		return
+	}
+
+	selectedUsers := r.FormValue("selectedUsers")
+	if selectedUsers == "" {
+		helpers.HandleError(w, helpers.NewAPIError("Selected users are required", http.StatusBadRequest))
+		return
+	}
+
+	var users []model.User
+	err = json.Unmarshal([]byte(selectedUsers), &users)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError("Invalid selected users data", http.StatusBadRequest))
+		return
+	}
+
+	file, header, err := r.FormFile("profilePhoto")
+	if err != nil && err != http.ErrMissingFile {
+		helpers.HandleError(w, helpers.NewAPIError("Error retrieving file", http.StatusBadRequest))
+		return
+	}
+
+	filepath, err := helpers.SaveUploadedFile(file, header, "webui/public/images/group", userId)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
+		return
+	}
+
+	result, err := h.services.CreateGroups(&helpers.CreateGroupRequest{
+		GroupName:      groupName,
+		GroupPhotoPath: filepath,
+		Users:          users,
+	}, userId)
 	if err != nil {
 		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusUnprocessableEntity))
 		return
@@ -196,8 +231,6 @@ func (h *Handler) webSocket(input *helpers.SendMessageRequest, userId uint) erro
 			// Проверяем, есть ли активное WebSocket-соединение для участника
 			memberConn, exists := groupConn[input.GroupId][member.UserID]
 			if exists {
-				fmt.Println(member.User.Username, "asdassssssssssssssss")
-
 				message := map[string]interface{}{
 					"message":   input.Text,
 					"sender":    userId,
@@ -230,4 +263,62 @@ func (h *Handler) webSocket(input *helpers.SendMessageRequest, userId uint) erro
 	}
 
 	return nil
+}
+
+func (h *Handler) uploadProfilePicture(w http.ResponseWriter, r *http.Request) {
+	userId := r.Context().Value("userId").(uint) // Получение ID пользователя из контекста
+
+	// Парсим загруженный файл
+	file, header, err := r.FormFile("profile_picture")
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusUnprocessableEntity))
+		return
+	}
+	defer file.Close()
+
+	filepath, err := helpers.SaveUploadedFile(file, header, "webui/public/images/profile", userId)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusUnprocessableEntity))
+		return
+	}
+
+	result, err := h.services.UpdateUserProfile(userId, filepath)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusUnprocessableEntity))
+		return
+	}
+
+	res := map[string]bool{"success": result}
+
+	w.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(res)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
+		return
+	}
+}
+
+func (h *Handler) leaveGroup(w http.ResponseWriter, r *http.Request) {
+	var input helpers.GroupRequest
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusUnprocessableEntity))
+		return
+	}
+
+	userId := r.Context().Value("userId").(uint)
+
+	result, err := h.services.LeaveGroup(userId, &input)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusUnprocessableEntity))
+		return
+	}
+
+	res := map[string]bool{"success": result}
+
+	w.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(res)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
+		return
+	}
 }

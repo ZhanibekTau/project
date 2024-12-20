@@ -1,7 +1,6 @@
 import {getToken} from "../store/auth";
 
 export function initializeWebSocket(app, groupId) {
-    console.log(groupId, "asdasdasd")
     let socketUrl = `ws://localhost:3000/ws?token=${getToken()}`;
 
     if (groupId !== 0) {

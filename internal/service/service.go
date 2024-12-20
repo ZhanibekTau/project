@@ -152,3 +152,14 @@ func (s *Service) CreateGroups(payload *helpers.CreateGroupRequest, addedById ui
 func (s *Service) GetGroupMembers(groupId uint) (*[]model.GroupMember, error) {
 	return s.Repository.GetGroupMembers(groupId)
 }
+
+func (s *Service) UpdateUserProfile(userId uint, filepath string) (bool, error) {
+	var user model.User
+	user.ID = userId
+	user.ProfilePhotoURL = filepath
+	return s.Repository.UpdateUserProfile(&user)
+}
+
+func (s *Service) LeaveGroup(userId uint, payload *helpers.GroupRequest) (bool, error) {
+	return s.Repository.DeleteGroupMember(userId, payload.Group)
+}

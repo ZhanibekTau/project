@@ -62,12 +62,11 @@ func (r *Repository) GetConversationsUsers(userId uint) (*[]model.User, error) {
 func (r *Repository) GetGroups(userId uint) (*[]model.Group, error) {
 	var groups []model.Group
 
-	// Исправленный запрос
 	if err := r.database.Raw(`
         SELECT DISTINCT g.*
         FROM groups g
         JOIN group_members gm ON g.id = gm.group_id
-        WHERE gm.user_id = ? OR gm.added_by = ?`, userId, userId).Scan(&groups).Error; err != nil {
+        WHERE gm.user_id = ? AND gm.added_by = ?`, userId, userId).Scan(&groups).Error; err != nil {
 		return nil, err
 	}
 
@@ -201,6 +200,7 @@ func (r *Repository) CreateGroup(payload *helpers.CreateGroupRequest, userId uin
 
 	group.CreatedBy = userId
 	group.Name = payload.GroupName
+	group.GroupPhotoURL = payload.GroupPhotoPath
 
 	result := r.database.Create(&group)
 	if result.Error != nil {
@@ -238,4 +238,26 @@ func (r *Repository) GetGroupMembers(groupId uint) (*[]model.GroupMember, error)
 	}
 
 	return &groupMember, nil
+}
+
+func (r *Repository) UpdateUserProfile(user *model.User) (bool, error) {
+	result := r.database.Model(&user).Where("id = ?", user.ID).Update("profile_photo_url", user.ProfilePhotoURL)
+	if result.Error != nil {
+		msg := result.Error
+		return false, msg
+	}
+
+	return true, nil
+}
+
+func (r *Repository) DeleteGroupMember(userId uint, group model.Group) (bool, error) {
+	result := r.database.Model(&model.GroupMember{}).
+		Where("user_id = ? AND group_id = ?", userId, group.ID).
+		Delete(&model.GroupMember{})
+
+	if result.Error != nil {
+		return false, result.Error
+	}
+
+	return true, nil
 }
