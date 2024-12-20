@@ -175,7 +175,7 @@
            username: this.username,
            password: this.password,
          });
-         logIn(response.data['token'])
+         logIn(response.data['token'], response.data['id'])
          window.location.reload();
        } catch (e) {
          this.errormsg = "Login failed. Please check your credentials.";

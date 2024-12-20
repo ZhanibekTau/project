@@ -7,6 +7,7 @@ import (
 	"project/cmd/database/model"
 	"project/internal/helpers"
 	"strings"
+	"time"
 )
 
 type Repository struct {
@@ -83,7 +84,7 @@ func (r *Repository) GetUsers(query string, userId uint) (*[]model.User, error) 
 	return &users, nil
 }
 
-func (r *Repository) GetMessages(user1ID uint, user2ID uint) ([]model.Message, error) {
+func (r *Repository) GetPrivateMessages(user1ID uint, user2ID uint) (*[]model.Message, error) {
 	// Step 1: Find the conversation between user1 and user2
 	var conversation model.Conversation
 	err := r.database.Where("(user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?)", user1ID, user2ID, user2ID, user1ID).First(&conversation).Error
@@ -97,13 +98,34 @@ func (r *Repository) GetMessages(user1ID uint, user2ID uint) ([]model.Message, e
 
 	// Step 2: Fetch messages for this conversation
 	var messages []model.Message
-	err = r.database.Where("conversation_id = ?", conversation.ID).Order("created_at asc").Find(&messages).Error
+	err = r.database.Where("conversation_id = ?", conversation.ID).Order("created_at asc").Preload("Sender").Find(&messages).Error
 	if err != nil {
 		log.Println("Error fetching messages:", err)
 		return nil, err
 	}
 
-	return messages, nil
+	return &messages, nil
+}
+
+func (r *Repository) GetGroupMessages(groupID uint) (*[]model.Message, error) {
+	var conversation model.Conversation
+	err := r.database.Where("group_id = ?", groupID).First(&conversation).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		log.Println("Error fetching conversation:", err)
+		return nil, err
+	}
+
+	var messages []model.Message
+	err = r.database.Where("conversation_id = ?", conversation.ID).Order("created_at asc").Preload("Sender").Find(&messages).Error
+	if err != nil {
+		log.Println("Error fetching messages:", err)
+		return nil, err
+	}
+
+	return &messages, nil
 }
 
 func (r *Repository) CreateMessage(message *model.Message) (bool, error) {
@@ -125,7 +147,7 @@ func (r *Repository) CreateConversation(conv *model.Conversation) (*model.Conver
 	return conv, nil
 }
 
-func (r *Repository) CheckConversation(user1Id, user2Id uint) (*model.Conversation, error) {
+func (r *Repository) CheckPrivateConversation(user1Id, user2Id uint) (*model.Conversation, error) {
 	var conv model.Conversation
 
 	result := r.database.Model(&model.Conversation{}).
@@ -151,8 +173,32 @@ func (r *Repository) CheckConversation(user1Id, user2Id uint) (*model.Conversati
 	return &conv, nil
 }
 
+func (r *Repository) CheckGroupConversation(groupId uint) (*model.Conversation, error) {
+	var conv model.Conversation
+
+	result := r.database.Model(&model.Conversation{}).
+		Where("group_id = ?", groupId).
+		Where("is_group = ?", true).
+		First(&conv)
+
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			conv = model.Conversation{
+				GroupID: &groupId,
+				IsGroup: true,
+			}
+
+			return r.CreateConversation(&conv)
+		}
+		return nil, result.Error
+	}
+
+	return &conv, nil
+}
+
 func (r *Repository) CreateGroup(payload *helpers.CreateGroupRequest, userId uint) (*model.Group, error) {
 	var group model.Group
+
 	group.CreatedBy = userId
 	group.Name = payload.GroupName
 
@@ -170,6 +216,7 @@ func (r *Repository) CreateGroupMembers(userId, addedById, groupId uint) (bool, 
 	groupMember.GroupID = groupId
 	groupMember.UserID = userId
 	groupMember.AddedBy = addedById
+	groupMember.AddedAt = time.Now()
 
 	result := r.database.Create(&groupMember)
 	if result.Error != nil {
@@ -178,4 +225,17 @@ func (r *Repository) CreateGroupMembers(userId, addedById, groupId uint) (bool, 
 	}
 
 	return true, nil
+}
+
+func (r *Repository) GetGroupMembers(groupId uint) (*[]model.GroupMember, error) {
+	var groupMember []model.GroupMember
+	result := r.database.Model(&model.GroupMember{}).
+		Where("group_id = ?", groupId).Preload("User").
+		Find(&groupMember)
+	if result.Error != nil {
+		msg := result.Error
+		return nil, msg
+	}
+
+	return &groupMember, nil
 }

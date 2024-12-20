@@ -19,23 +19,23 @@ func NewService(repository *repository.Repository) *Service {
 	}
 }
 
-func (s *Service) CreateOrUpdateUser(user *model.User) (string, error) {
+func (s *Service) CreateOrGetUser(user *model.User) (*model.User, error) {
 	existUser, err := s.Repository.GetUser(user)
 	if err != nil {
 		fmt.Println(err)
-		return "", err
+		return nil, err
 	}
 
 	if existUser == nil {
 		createdUser, err := s.Repository.CreateUser(user)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
-		return helpers.GenerateSessionToken(createdUser)
+		return createdUser, nil
 	}
 
-	return helpers.GenerateSessionToken(existUser)
+	return existUser, nil
 }
 
 func (s *Service) GetConversations(userId uint) (map[string]interface{}, error) {
@@ -69,28 +69,52 @@ func (s *Service) ValidateUser(user *model.User) (string, error) {
 	return token, nil
 }
 
-func (s *Service) GetMessages(user1ID uint, user2ID uint) (*[]helpers.MessagesResponse, error) {
-	messages, err := s.Repository.GetMessages(user1ID, user2ID)
-	if err != nil {
-		return nil, err
+func (s *Service) GetMessages(user1ID uint, payload *helpers.GetMessagesRequest) (*[]helpers.MessagesResponse, error) {
+	var messages *[]model.Message
+	var err error
+
+	if !payload.IsGroup {
+		messages, err = s.Repository.GetPrivateMessages(user1ID, payload.UserId)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		messages, err = s.Repository.GetGroupMessages(payload.UserId)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var response []helpers.MessagesResponse
-	for _, message := range messages {
-		response = append(response, helpers.MessagesResponse{
-			Message:        message.Content,        // Message text
-			UserId:         message.SenderID,       // Sender user ID
-			ConversationId: message.ConversationID, // Conversation ID
-		})
+	if messages != nil {
+		for _, message := range *messages {
+			response = append(response, helpers.MessagesResponse{
+				Message:        message.Content,         // Message text
+				UserId:         message.SenderID,        // Sender user ID
+				ConversationId: message.ConversationID,  // Conversation ID
+				Username:       message.Sender.Username, // Conversation ID
+				CreatedAt:      message.CreatedAt,       // Conversation ID
+			})
+		}
 	}
 
 	return &response, nil
 }
 
 func (s *Service) SendMessage(userId uint, input *helpers.SendMessageRequest) (bool, error) {
-	conv, err := s.Repository.CheckConversation(userId, input.ToUserId)
-	if err != nil {
-		return false, err
+	var conv *model.Conversation
+	var err error
+
+	if !input.IsGroup {
+		conv, err = s.Repository.CheckPrivateConversation(userId, input.ToUserId)
+		if err != nil {
+			return false, err
+		}
+	} else {
+		conv, err = s.Repository.CheckGroupConversation(input.GroupId)
+		if err != nil {
+			return false, err
+		}
 	}
 
 	message := model.Message{
@@ -110,6 +134,11 @@ func (s *Service) CreateGroups(payload *helpers.CreateGroupRequest, addedById ui
 		return false, err
 	}
 
+	_, err = s.Repository.CreateGroupMembers(addedById, addedById, group.ID)
+	if err != nil {
+		return false, err
+	}
+
 	for _, user := range payload.Users {
 		_, err = s.Repository.CreateGroupMembers(user.ID, addedById, group.ID)
 		if err != nil {
@@ -118,4 +147,8 @@ func (s *Service) CreateGroups(payload *helpers.CreateGroupRequest, addedById ui
 	}
 
 	return true, nil
+}
+
+func (s *Service) GetGroupMembers(groupId uint) (*[]model.GroupMember, error) {
+	return s.Repository.GetGroupMembers(groupId)
 }

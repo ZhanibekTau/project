@@ -17,7 +17,20 @@
           :key="index"
           :class="['chat-message', message.isSent ? 'sent' : 'received']"
       >
-        {{ message.message }}
+        <!-- Name at the top -->
+        <div class="message-header">
+          <span class="message-sender">{{ message.username }}</span>
+        </div>
+
+        <!-- Message content -->
+        <div class="message-content">
+          {{ message.message }}
+        </div>
+
+        <!-- Time at the bottom left -->
+        <div class="message-footer">
+          <span class="message-time">{{ formatTime(message.createdAt) }}</span>
+        </div>
       </div>
     </div>
 
@@ -35,7 +48,7 @@
 </template>
 
 <script>
-import {getToken} from "../store/auth";
+import {getId, getToken} from "../store/auth";
 import {initializeWebSocket} from "../services/socket";
 
 export default {
@@ -48,15 +61,23 @@ export default {
       newMessage: "",
     };
   },
-  created() {
-    this.socket = initializeWebSocket(this);
-  },
   beforeDestroy() {
     if (this.socket) {
       this.socket.close();
     }
   },
   methods: {
+    initializeSocket() {
+      if (this.groupInfo && this.groupInfo.ID) {
+        this.socket = initializeWebSocket(this, this.groupInfo.ID);
+      } else {
+        this.socket = initializeWebSocket(this, 0);
+      }
+    },
+    formatTime(timestamp) {
+      const date = new Date(timestamp);
+      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    },
     goBack() {
       this.$router.push("/");
     },
@@ -72,11 +93,13 @@ export default {
             'Authorization': `Bearer ${getToken()}`
           }
         });
-
         this.messages = response.data['messages'].map(message => ({
           message: message.message,
-          isSent: message.user_id !== this.userInfo.ID
+          isSent: message.user_id == getId(),
+          username: message.username ?? "",
+          createdAt: message.createdAt ?? ""
         }));
+
       } catch (error) {
         if (error.response) {
           if (error.response.status === 401) {
@@ -99,6 +122,7 @@ export default {
           message: this.newMessage,
           isSent: true,
           isGroup: isGroup,
+          createdAt: Date(),
         };
 
         this.messages.push(messageToSend);
@@ -119,10 +143,11 @@ export default {
           text: message.message,
           toUserId: this.userInfo.ID,
           isGroup:message.isGroup,
+          groupId:this.groupInfo.ID
         }, {
           headers: {
             'Authorization': `Bearer ${getToken()}`
-          }
+          },
         });
 
         console.log('Message sent:', response.data);
@@ -152,13 +177,15 @@ export default {
     userInfo(newValue) {
       if (newValue && newValue.ID) {
         this.getMessages(newValue.ID);
+        this.initializeSocket();
       }
     },
     groupInfo(newValue) {
       if (newValue && newValue.ID) {
         this.getMessages(newValue.ID);
+        this.initializeSocket();
       }
-    }
+    },
   },
 };
 </script>
@@ -205,26 +232,6 @@ export default {
   flex-direction: column;
 }
 
-.chat-message {
-  max-width: 70%;
-  padding: 10px;
-  margin: 5px 0;
-  border-radius: 8px;
-  word-wrap: break-word;
-}
-
-.chat-message.sent {
-  align-self: flex-end;
-  background-color: #0088cc;
-  color: white;
-}
-
-.chat-message.received {
-  align-self: flex-start;
-  background-color: #e5e5ea;
-  color: black;
-}
-
 /* Input box styles */
 .chat-input {
   display: flex;
@@ -255,5 +262,37 @@ export default {
 
 .chat-input button:hover {
   background-color: #005f99;
+}
+
+.chat-message {
+  padding: 10px;
+  margin: 5px 0;
+  border-radius: 8px;
+  max-width: 60%;
+  word-wrap: break-word;
+  position: relative;
+}
+
+.chat-message.sent {
+  background-color: #d1e7dd;
+  margin-left: auto;
+  text-align: right;
+}
+
+.chat-message.received {
+  background-color: #f8d7da;
+  margin-right: auto;
+}
+
+.message-header {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.message-footer {
+  font-size: 0.8em;
+  color: gray;
+  text-align: left;
+  margin-top: 5px;
 }
 </style>
