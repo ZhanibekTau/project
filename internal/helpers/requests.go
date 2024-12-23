@@ -23,3 +23,8 @@ type CreateGroupRequest struct {
 type GroupRequest struct {
 	Group model.Group `json:"group"`
 }
+
+type AddUsersToGroup struct {
+	GroupId uint         `json:"groupId"`
+	Users   []model.User `json:"users"`
+}

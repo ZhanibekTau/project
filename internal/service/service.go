@@ -6,6 +6,7 @@ import (
 	"project/internal/consts"
 	"project/internal/helpers"
 	repository "project/internal/repositories"
+	"slices"
 	"time"
 )
 
@@ -49,7 +50,7 @@ func (s *Service) GetConversations(userId uint) (map[string]interface{}, error) 
 	if err != nil {
 		return nil, err
 	}
-
+	fmt.Println(groups, "adsdasdasd")
 	res["users"] = users
 	res["groups"] = groups
 
@@ -162,4 +163,27 @@ func (s *Service) UpdateUserProfile(userId uint, filepath string) (bool, error) 
 
 func (s *Service) LeaveGroup(userId uint, payload *helpers.GroupRequest) (bool, error) {
 	return s.Repository.DeleteGroupMember(userId, payload.Group)
+}
+
+func (s *Service) AddUsersToGroup(userId uint, payload *helpers.AddUsersToGroup) (bool, error) {
+	users, err := s.Repository.GetGroupMembers(payload.GroupId)
+	if err != nil {
+		return false, err
+	}
+	var userIds = make([]uint, len(*users))
+
+	for _, user := range *users {
+		userIds = append(userIds, user.UserID)
+	}
+
+	for _, v := range payload.Users {
+		if !slices.Contains(userIds, v.ID) {
+			_, err = s.Repository.CreateGroupMembers(v.ID, userId, payload.GroupId)
+			if err != nil {
+				return false, err
+			}
+		}
+	}
+
+	return true, nil
 }

@@ -66,7 +66,7 @@ func (r *Repository) GetGroups(userId uint) (*[]model.Group, error) {
         SELECT DISTINCT g.*
         FROM groups g
         JOIN group_members gm ON g.id = gm.group_id
-        WHERE gm.user_id = ? AND gm.added_by = ?`, userId, userId).Scan(&groups).Error; err != nil {
+        WHERE gm.user_id = ?`, userId).Scan(&groups).Error; err != nil {
 		return nil, err
 	}
 

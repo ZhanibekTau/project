@@ -204,7 +204,7 @@
 
          this.users = response.data['result']['users'];
          this.groups = response.data['result']['groups'];
-
+          console.log(response.data)
        } catch (error) {
          console.log(error, "ERROR")
          if (error.response) {

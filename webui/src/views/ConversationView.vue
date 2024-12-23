@@ -91,8 +91,9 @@
           </div>
 
           <button @click="closeModal">Close</button>
+
+          <button type="submit">Update Group</button>
         </div>
-        <button type="submit">Create Group</button>
       </form>
     </div>
   </div>
@@ -249,9 +250,9 @@ export default {
     async addNewUsers() {
       try {
         const response = await this.$axios.post(
-            "/create-group",
+            "/update-group",
             {
-              groupName: this.groupName,
+              groupId: this.groupInfo.ID,
               users: this.selectedUsers
             },
             {
@@ -261,6 +262,7 @@ export default {
             }
         );
         this.isModalVisible = false;
+        alert("User added")
       } catch (error) {
         console.error("Error add users to group:", error);
       }

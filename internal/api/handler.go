@@ -322,3 +322,28 @@ func (h *Handler) leaveGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
+
+func (h *Handler) addUsersToGroup(w http.ResponseWriter, r *http.Request) {
+	var input helpers.AddUsersToGroup
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusUnprocessableEntity))
+		return
+	}
+
+	userId := r.Context().Value("userId").(uint)
+
+	result, err := h.services.AddUsersToGroup(userId, &input)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusUnprocessableEntity))
+		return
+	}
+
+	res := map[string]bool{"success": result}
+
+	w.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(res)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
+		return
+	}
+}
