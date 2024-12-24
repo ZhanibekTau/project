@@ -29,3 +29,7 @@ type AddUsersToGroup struct {
 	GroupId uint         `json:"groupId"`
 	Users   []model.User `json:"users"`
 }
+
+type DeleteMessage struct {
+	MessageId uint `json:"id"`
+}

@@ -90,6 +90,7 @@ func (s *Service) GetMessages(user1ID uint, payload *helpers.GetMessagesRequest)
 		for _, message := range *messages {
 			if message.MessageType == consts.MessageTypeText {
 				response = append(response, helpers.MessagesResponse{
+					MessageId:      message.ID,
 					Message:        message.Content,         // Message text
 					UserId:         message.SenderID,        // Sender user ID
 					ConversationId: message.ConversationID,  // Conversation ID
@@ -100,6 +101,7 @@ func (s *Service) GetMessages(user1ID uint, payload *helpers.GetMessagesRequest)
 				})
 			} else {
 				response = append(response, helpers.MessagesResponse{
+					MessageId:      message.ID,
 					Message:        message.Content,         // Message text
 					UserId:         message.SenderID,        // Sender user ID
 					ConversationId: message.ConversationID,  // Conversation ID
@@ -115,19 +117,19 @@ func (s *Service) GetMessages(user1ID uint, payload *helpers.GetMessagesRequest)
 	return &response, nil
 }
 
-func (s *Service) SendMessage(userId uint, input *helpers.SendMessageRequest) (bool, error) {
+func (s *Service) SendMessage(userId uint, input *helpers.SendMessageRequest) (*model.Message, error) {
 	var conv *model.Conversation
 	var err error
 
 	if !input.IsGroup {
 		conv, err = s.Repository.CheckPrivateConversation(userId, input.ToUserId)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
 	} else {
 		conv, err = s.Repository.CheckGroupConversation(input.GroupId)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
 	}
 	var message model.Message
@@ -229,4 +231,8 @@ func (s *Service) MarkAsRead(userId uint, input *helpers.SendMessageRequest) (bo
 	}
 
 	return s.Repository.MarkAsRead(conv.ID, userId)
+}
+
+func (s *Service) DeleteMessage(msgID uint) (bool, error) {
+	return s.Repository.DeleteMessage(msgID)
 }

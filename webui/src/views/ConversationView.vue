@@ -23,6 +23,7 @@
           v-for="(message, index) in messages"
           :key="index"
           :class="['chat-message', message.isSent ? 'sent' : 'received']"
+          @contextmenu.prevent="openContextMenu($event, message, index)"
       >
         <!-- Name at the top -->
         <div class="message-header">
@@ -52,6 +53,24 @@
             <i class="fas fa-check check-icon"></i>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div
+        v-if="showContextMenu"
+        class="context-menu"
+        :style="{ top: contextMenuPosition.y + 'px', left: contextMenuPosition.x + 'px' }"
+    >
+      <ul>
+        <li @click="deleteMessage(selectedMessage)">Delete</li>
+        <li @click="commentMessage(selectedMessage)">Comment</li>
+        <li @click="forwardMessage(selectedMessage)">Forward</li>
+      </ul>
+    </div>
+
+    <div v-if="showEmojiPicker" class="emoji-picker">
+      <div v-for="emoji in emojis" :key="emoji" class="emoji" @click="selectEmoji(emoji)">
+        {{ emoji }}
       </div>
     </div>
 
@@ -143,6 +162,13 @@ export default {
       searchQuery: '',
       userSearchResult: [],
       selectedUsers: [],
+      showContextMenu: false,
+      contextMenuPosition: { x: 0, y: 0 },
+      selectedMessage: null,
+      showEmojiPicker: false,
+      emojis: ["😀", "😂", "😍", "😎", "😢", "😡", "👍", "👎", "🔥", "❤️", "💯"],
+      selectedEmoji: "",
+      selectedIndex: null,
     };
   },
   beforeDestroy() {
@@ -179,6 +205,7 @@ export default {
           }
         });
         this.messages = response.data['messages'].map(message => ({
+          id: message.message_id,
           message: message.message,
           isPhoto: message.is_photo,
           isSent: message.user_id == getId(),
@@ -355,10 +382,68 @@ export default {
       } catch (error) {
         console.error("Error creating group:", error);
       }
-    }
+    },
+    openContextMenu(event, message, index) {
+      this.selectedIndex = index;
+      event.preventDefault();
+      this.showContextMenu = true;
+      this.contextMenuPosition = { x: event.clientX, y: event.clientY };
+      this.selectedMessage = message;
+
+      document.addEventListener("click", this.closeContextMenu);
+    },
+    closeContextMenu() {
+      this.showContextMenu = false;
+      document.removeEventListener("click", this.closeContextMenu);
+    },
+    async deleteMessage(message) {
+      try {
+        const response = await this.$axios.post(
+            "/delete-message",
+            {
+              id: message.id,
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${getToken()}`,
+              },
+            }
+        );
+
+        if(response.data) {
+          alert("Message deleted")
+          window.location.reload()
+        }
+
+      } catch (error) {
+        console.error("Error creating group:", error);
+      }
+    },
+    commentMessage(message) {
+      this.showEmojiPicker = true; // Show emoji picker
+      this.showContextMenu = false; // Hide context menu
+    },
+    forwardMessage(message) {
+      this.showContextMenu = false;
+      const recipient = prompt("Enter recipient username or ID:");
+      if (recipient) {
+        this.$axios.post(`/api/messages/${message.id}/forward`, { recipient })
+            .then(() => {
+              console.log("Message forwarded");
+            })
+            .catch(error => {
+              console.error("Failed to forward message:", error);
+            });
+      }
+    },
+    selectEmoji(emoji) {
+      console.log("Selected emoji:", emoji);
+      // Append emoji to the comment or selected message
+      this.selectedEmoji = emoji;
+      this.showEmojiPicker = false; // Close emoji picker
+    },
   },
   mounted() {
-
     if (this.$route.query.entity) {
       try {
         const entity = JSON.parse(this.$route.query.entity);
@@ -530,5 +615,30 @@ export default {
 
 .search-results, .selected-users {
   margin-top: 20px;
+}
+
+.context-menu {
+  position: absolute;
+  z-index: 1000;
+  background: #fff;
+  border: 1px solid #ddd;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+.context-menu ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.context-menu ul li {
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.context-menu ul li:hover {
+  background: #f5f5f5;
 }
 </style>

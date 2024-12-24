@@ -3,6 +3,7 @@ package helpers
 import "time"
 
 type MessagesResponse struct {
+	MessageId      uint      `json:"message_id"`
 	Message        string    `json:"message"`
 	IsPhoto        bool      `json:"is_photo"`
 	UserId         uint      `json:"user_id"`

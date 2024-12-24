@@ -18,6 +18,7 @@ export function initializeWebSocket(app, groupId) {
         console.log('New message:', message.message);
 
         app.messages.push({
+            id:message.id,
             message: message.message,
             isPhoto:message.isPhoto,
             username: message.username ?? app.userInfo.Username,

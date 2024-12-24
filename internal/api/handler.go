@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"project/cmd/database/model"
 	"project/internal/helpers"
@@ -210,7 +211,7 @@ func (h *Handler) createGroup(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) webSocket(input *helpers.SendMessageRequest, userId uint, result, resultRead bool) (map[string]interface{}, error) {
+func (h *Handler) webSocket(input *helpers.SendMessageRequest, userId uint, result *model.Message, resultRead bool) (map[string]interface{}, error) {
 	var fromUsername string
 	message := map[string]interface{}{}
 
@@ -230,24 +231,26 @@ func (h *Handler) webSocket(input *helpers.SendMessageRequest, userId uint, resu
 			if exists {
 				if input.PhotoPath != "" {
 					message = map[string]interface{}{
+						"id":         result.ID,
 						"message":    input.PhotoPath,
 						"isPhoto":    true,
 						"sender":     userId,
 						"groupId":    input.GroupId,
 						"username":   fromUsername,
-						"isReceived": result,
+						"isReceived": true,
 						"isRead":     resultRead,
 						"createdAt":  time.Now(),
 					}
 				} else {
 					message = map[string]interface{}{
+						"id":         result.ID,
 						"message":    input.Text,
 						"isPhoto":    false,
 						"sender":     userId,
 						"groupId":    input.GroupId,
 						"username":   fromUsername,
 						"createdAt":  time.Now(),
-						"isReceived": result,
+						"isReceived": true,
 						"isRead":     resultRead,
 					}
 				}
@@ -264,20 +267,22 @@ func (h *Handler) webSocket(input *helpers.SendMessageRequest, userId uint, resu
 		if exists {
 			if input.PhotoPath != "" {
 				message = map[string]interface{}{
+					"id":         result.ID,
 					"message":    input.PhotoPath,
 					"isPhoto":    true,
 					"sender":     userId,
 					"createdAt":  time.Now(),
-					"isReceived": result,
+					"isReceived": true,
 					"isRead":     resultRead,
 				}
 			} else {
 				message = map[string]interface{}{
+					"id":         result.ID,
 					"message":    input.Text,
 					"isPhoto":    false,
 					"sender":     userId,
 					"createdAt":  time.Now(),
-					"isReceived": result,
+					"isReceived": true,
 					"isRead":     resultRead,
 				}
 			}
@@ -296,7 +301,6 @@ func (h *Handler) webSocket(input *helpers.SendMessageRequest, userId uint, resu
 func (h *Handler) uploadProfilePicture(w http.ResponseWriter, r *http.Request) {
 	userId := r.Context().Value("userId").(uint) // Получение ID пользователя из контекста
 
-	// Парсим загруженный файл
 	file, header, err := r.FormFile("profile_picture")
 	if err != nil {
 		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusUnprocessableEntity))
@@ -468,6 +472,27 @@ func (h *Handler) markAsRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(result)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
+		return
+	}
+}
+
+func (h *Handler) deleteMessage(w http.ResponseWriter, r *http.Request) {
+	var input helpers.DeleteMessage
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusUnprocessableEntity))
+		return
+	}
+
+	result, err := h.services.DeleteMessage(input.MessageId)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusUnprocessableEntity))
+		return
+	}
+	fmt.Println(input.MessageId, "asdasdasdasd")
 	w.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(w).Encode(result)
 	if err != nil {

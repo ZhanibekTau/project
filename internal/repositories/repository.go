@@ -127,13 +127,13 @@ func (r *Repository) GetGroupMessages(groupID uint) (*[]model.Message, error) {
 	return &messages, nil
 }
 
-func (r *Repository) CreateMessage(message *model.Message) (bool, error) {
-	result := r.database.Create(&message)
+func (r *Repository) CreateMessage(message *model.Message) (*model.Message, error) {
+	result := r.database.Create(&message).Find(&message)
 	if result.Error != nil {
-		return false, result.Error
+		return nil, result.Error
 	}
 
-	return true, nil
+	return message, nil
 }
 
 func (r *Repository) CreateConversation(conv *model.Conversation) (*model.Conversation, error) {
@@ -266,6 +266,18 @@ func (r *Repository) MarkAsRead(convId, userId uint) (bool, error) {
 	err := r.database.Model(&model.Message{}).
 		Where("conversation_id = ? AND is_read = ? AND sender_id != ?", convId, false, userId).
 		Update("is_read", true).Error
+	if err != nil {
+		log.Println("Error updating is_read:", err)
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (r *Repository) DeleteMessage(msgID uint) (bool, error) {
+	err := r.database.Model(&model.Message{}).
+		Where("id = ?", msgID).
+		Delete(&model.Message{}).Error
 	if err != nil {
 		log.Println("Error updating is_read:", err)
 		return false, err
