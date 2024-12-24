@@ -6,6 +6,7 @@ import (
 	"project/cmd/database/model"
 	"project/internal/helpers"
 	"project/internal/service"
+	"strconv"
 	"time"
 )
 
@@ -213,6 +214,8 @@ func (h *Handler) createGroup(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) webSocket(input *helpers.SendMessageRequest, userId uint) error {
 	var fromUsername string
+	message := map[string]interface{}{}
+
 	// Проверяем, является ли сообщение групповым
 	if input.IsGroup {
 		// Получаем ID участников группы
@@ -231,13 +234,26 @@ func (h *Handler) webSocket(input *helpers.SendMessageRequest, userId uint) erro
 			// Проверяем, есть ли активное WebSocket-соединение для участника
 			memberConn, exists := groupConn[input.GroupId][member.UserID]
 			if exists {
-				message := map[string]interface{}{
-					"message":   input.Text,
-					"sender":    userId,
-					"groupId":   input.GroupId,
-					"username":  fromUsername,
-					"createdAt": time.Now(),
+				if input.PhotoPath != "" {
+					message = map[string]interface{}{
+						"message":   input.PhotoPath,
+						"isPhoto":   true,
+						"sender":    userId,
+						"groupId":   input.GroupId,
+						"username":  fromUsername,
+						"createdAt": time.Now(),
+					}
+				} else {
+					message = map[string]interface{}{
+						"message":   input.Text,
+						"isPhoto":   false,
+						"sender":    userId,
+						"groupId":   input.GroupId,
+						"username":  fromUsername,
+						"createdAt": time.Now(),
+					}
 				}
+
 				err = memberConn.WriteJSON(message)
 				if err != nil {
 					// Если отправка не удалась, логируем ошибку
@@ -246,14 +262,24 @@ func (h *Handler) webSocket(input *helpers.SendMessageRequest, userId uint) erro
 			}
 		}
 	} else {
-		// Проверяем, есть ли активное WebSocket-соединение для получателя
 		receiverConn, exists := connections[input.ToUserId]
 		if exists {
-			message := map[string]interface{}{
-				"message":   input.Text,
-				"sender":    userId,
-				"createdAt": time.Now(),
+			if input.PhotoPath != "" {
+				message = map[string]interface{}{
+					"message":   input.PhotoPath,
+					"isPhoto":   true,
+					"sender":    userId,
+					"createdAt": time.Now(),
+				}
+			} else {
+				message = map[string]interface{}{
+					"message":   input.Text,
+					"isPhoto":   false,
+					"sender":    userId,
+					"createdAt": time.Now(),
+				}
 			}
+
 			err := receiverConn.WriteJSON(message)
 			if err != nil {
 				// Если отправка не удалась, логируем ошибку
@@ -346,4 +372,86 @@ func (h *Handler) addUsersToGroup(w http.ResponseWriter, r *http.Request) {
 		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
 		return
 	}
+}
+
+func (h *Handler) sendPhoto(w http.ResponseWriter, r *http.Request) {
+	userId, ok := r.Context().Value("userId").(uint)
+	if !ok {
+		helpers.HandleError(w, helpers.NewAPIError("Invalid user ID", http.StatusUnauthorized))
+		return
+	}
+
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		helpers.HandleError(w, helpers.NewAPIError("Unable to parse form data", http.StatusUnprocessableEntity))
+		return
+	}
+
+	isGroup, err := strconv.ParseBool(r.FormValue("isGroup"))
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError("Invalid 'isGroup' value", http.StatusUnprocessableEntity))
+		return
+	}
+
+	groupId, err := parseOptionalInt(r.FormValue("groupId"))
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError("Invalid 'groupId' value", http.StatusUnprocessableEntity))
+		return
+	}
+
+	toUserId, err := parseOptionalInt(r.FormValue("toUserId"))
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError("Invalid 'toUserId' value", http.StatusUnprocessableEntity))
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil && err != http.ErrMissingFile {
+		helpers.HandleError(w, helpers.NewAPIError("Error retrieving file", http.StatusBadRequest))
+		return
+	}
+
+	filepath, err := helpers.SaveUploadedFile(file, header, "webui/public/images/conversation", userId)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError("Error saving file", http.StatusBadRequest))
+		return
+	}
+
+	payload := helpers.SendMessageRequest{
+		ToUserId:  uint(toUserId),
+		IsGroup:   isGroup,
+		GroupId:   uint(groupId),
+		PhotoPath: filepath,
+	}
+
+	result, err := h.services.SendMessage(userId, &payload)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError("Failed to send message", http.StatusBadRequest))
+		return
+	}
+
+	if err = h.webSocket(&payload, userId); err != nil {
+		helpers.HandleError(w, helpers.NewAPIError("Failed to send WebSocket notification", http.StatusBadRequest))
+		return
+	}
+	var res map[string]string
+
+	if result {
+		res = map[string]string{
+			"photoPath": filepath,
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(res)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
+		return
+	}
+}
+
+func parseOptionalInt(value string) (int, error) {
+	if value == "undefined" || value == "" {
+		return 0, nil
+	}
+	return strconv.Atoi(value)
 }

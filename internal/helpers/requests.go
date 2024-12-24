@@ -8,10 +8,11 @@ type GetMessagesRequest struct {
 }
 
 type SendMessageRequest struct {
-	Text     string `json:"text"`
-	ToUserId uint   `json:"toUserId"`
-	IsGroup  bool   `json:"isGroup"`
-	GroupId  uint   `json:"groupId"`
+	Text      string `json:"text"`
+	ToUserId  uint   `json:"toUserId"`
+	IsGroup   bool   `json:"isGroup"`
+	GroupId   uint   `json:"groupId"`
+	PhotoPath string `json:"photoPath"`
 }
 
 type CreateGroupRequest struct {

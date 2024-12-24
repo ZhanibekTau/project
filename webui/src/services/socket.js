@@ -19,6 +19,7 @@ export function initializeWebSocket(app, groupId) {
 
         app.messages.push({
             message: message.message,
+            isPhoto:message.isPhoto,
             username: message.username ?? app.userInfo.Username,
             createdAt: message.createdAt,
             isSent: false,

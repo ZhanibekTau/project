@@ -50,7 +50,6 @@ func (s *Service) GetConversations(userId uint) (map[string]interface{}, error) 
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(groups, "adsdasdasd")
 	res["users"] = users
 	res["groups"] = groups
 
@@ -89,13 +88,25 @@ func (s *Service) GetMessages(user1ID uint, payload *helpers.GetMessagesRequest)
 	var response []helpers.MessagesResponse
 	if messages != nil {
 		for _, message := range *messages {
-			response = append(response, helpers.MessagesResponse{
-				Message:        message.Content,         // Message text
-				UserId:         message.SenderID,        // Sender user ID
-				ConversationId: message.ConversationID,  // Conversation ID
-				Username:       message.Sender.Username, // Conversation ID
-				CreatedAt:      message.CreatedAt,       // Conversation ID
-			})
+			if message.MessageType == consts.MessageTypeText {
+				response = append(response, helpers.MessagesResponse{
+					Message:        message.Content,         // Message text
+					UserId:         message.SenderID,        // Sender user ID
+					ConversationId: message.ConversationID,  // Conversation ID
+					Username:       message.Sender.Username, // Conversation ID
+					CreatedAt:      message.CreatedAt,       // Conversation ID
+					IsPhoto:        false,
+				})
+			} else {
+				response = append(response, helpers.MessagesResponse{
+					Message:        message.Content,         // Message text
+					UserId:         message.SenderID,        // Sender user ID
+					ConversationId: message.ConversationID,  // Conversation ID
+					Username:       message.Sender.Username, // Conversation ID
+					CreatedAt:      message.CreatedAt,       // Conversation ID
+					IsPhoto:        true,
+				})
+			}
 		}
 	}
 
@@ -117,13 +128,24 @@ func (s *Service) SendMessage(userId uint, input *helpers.SendMessageRequest) (b
 			return false, err
 		}
 	}
+	var message model.Message
 
-	message := model.Message{
-		ConversationID: conv.ID,
-		SenderID:       userId,
-		Content:        input.Text,
-		MessageType:    consts.MessageTypeText,
-		CreatedAt:      time.Now(),
+	if input.PhotoPath == "" {
+		message = model.Message{
+			ConversationID: conv.ID,
+			SenderID:       userId,
+			Content:        input.Text,
+			MessageType:    consts.MessageTypeText,
+			CreatedAt:      time.Now(),
+		}
+	} else {
+		message = model.Message{
+			ConversationID: conv.ID,
+			SenderID:       userId,
+			Content:        input.PhotoPath,
+			MessageType:    consts.MessageTypePhoto,
+			CreatedAt:      time.Now(),
+		}
 	}
 
 	return s.Repository.CreateMessage(&message)

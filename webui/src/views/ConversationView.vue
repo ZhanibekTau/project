@@ -1,4 +1,6 @@
 <template xmlns="http://www.w3.org/1999/html">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+
   <div class="conversation-page">
     <!-- Header -->
     <header class="chat-header">
@@ -29,7 +31,15 @@
 
         <!-- Message content -->
         <div class="message-content">
-          {{ message.message }}
+          <div v-if="message.isPhoto">
+            <img
+                :src="getProfileImage(message.message)"
+                alt="Sent Photo"
+            />
+          </div>
+          <div v-else>
+            {{ message.message }}
+          </div>
         </div>
 
         <!-- Time at the bottom left -->
@@ -48,6 +58,16 @@
           @keyup.enter="sendMessage"
       />
       <button @click="sendMessage">Send</button>
+      <input
+          type="file"
+          ref="fileInput"
+          @change="uploadAndSendPhoto"
+          accept="image/*"
+          style="display: none;"
+      />
+      <button @click="triggerFileInput">
+        <i class="fas fa-paperclip"></i>
+      </button>
     </div>
 
     <div v-if="isModalVisible" class="modal">
@@ -107,6 +127,7 @@ import {getProfileImage} from "../store/helpers";
 export default {
   data() {
     return {
+      photoPath:"",
       socket: null,
       userInfo: {},
       groupInfo: {},
@@ -153,11 +174,12 @@ export default {
         });
         this.messages = response.data['messages'].map(message => ({
           message: message.message,
+          isPhoto: message.is_photo,
           isSent: message.user_id == getId(),
           username: message.username ?? "",
           createdAt: message.createdAt ?? ""
         }));
-
+        console.log(this.messages)
       } catch (error) {
         if (error.response) {
           if (error.response.status === 401) {
@@ -266,7 +288,54 @@ export default {
       } catch (error) {
         console.error("Error add users to group:", error);
       }
-    }
+    },
+    triggerFileInput() {
+      this.$refs.fileInput.click();
+    },
+    async uploadAndSendPhoto(event) {
+      const file = event.target.files[0];
+      const isGroup = !!this.groupInfo.ID;
+
+      if (!file) {
+        alert('No file selected!');
+        return;
+      }
+
+      const formData = new FormData();
+
+      formData.append('file', file);
+      formData.append('isGroup', isGroup);
+      formData.append('groupId', this.groupInfo.ID);
+      formData.append('toUserId', this.userInfo.ID);
+
+      try {
+        const response = await this.$axios.post("/send-photo", formData, {
+          headers: {
+            Authorization: `Bearer ${getToken()}`,
+            "Content-Type": "multipart/form-data",
+          },
+        });
+
+        this.photoPath = response.data['photoPath']
+
+        const messageToSend = {
+          message: this.photoPath,
+          isSent: true,
+          isGroup: isGroup,
+          createdAt: Date(),
+          isPhoto: true
+        };
+
+        this.messages.push(messageToSend);
+
+        this.$nextTick(() => {
+          const chatMessages = this.$refs.chatMessages;
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        });
+      } catch (error) {
+        console.error("Error creating group:", error);
+      }
+    },
   },
   mounted() {
     if (this.$route.query.entity) {
