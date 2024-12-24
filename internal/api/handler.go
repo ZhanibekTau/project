@@ -136,16 +136,14 @@ func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.webSocket(&input, userId)
+	message, err := h.webSocket(&input, userId, result, false)
 	if err != nil {
 		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
 		return
 	}
 
-	res := map[string]bool{"success": result}
-
 	w.Header().Set("Content-Type", "application/json")
-	err = json.NewEncoder(w).Encode(res)
+	err = json.NewEncoder(w).Encode(message)
 	if err != nil {
 		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
 		return
@@ -155,7 +153,7 @@ func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) createGroup(w http.ResponseWriter, r *http.Request) {
 	userId := r.Context().Value("userId").(uint)
 
-	err := r.ParseMultipartForm(10 << 20) // Limit file size to 10MB
+	err := r.ParseMultipartForm(10 << 20)
 	if err != nil {
 		helpers.HandleError(w, helpers.NewAPIError("Unable to parse form data", http.StatusUnprocessableEntity))
 		return
@@ -212,45 +210,45 @@ func (h *Handler) createGroup(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) webSocket(input *helpers.SendMessageRequest, userId uint) error {
+func (h *Handler) webSocket(input *helpers.SendMessageRequest, userId uint, result, resultRead bool) (map[string]interface{}, error) {
 	var fromUsername string
 	message := map[string]interface{}{}
 
-	// Проверяем, является ли сообщение групповым
 	if input.IsGroup {
-		// Получаем ID участников группы
 		groupMembers, err := h.services.GetGroupMembers(input.GroupId)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		// Отправляем сообщение каждому участнику группы
 		for _, member := range *groupMembers {
 			if member.UserID == userId {
 				fromUsername = member.User.Username
 				continue
 			}
 
-			// Проверяем, есть ли активное WebSocket-соединение для участника
 			memberConn, exists := groupConn[input.GroupId][member.UserID]
 			if exists {
 				if input.PhotoPath != "" {
 					message = map[string]interface{}{
-						"message":   input.PhotoPath,
-						"isPhoto":   true,
-						"sender":    userId,
-						"groupId":   input.GroupId,
-						"username":  fromUsername,
-						"createdAt": time.Now(),
+						"message":    input.PhotoPath,
+						"isPhoto":    true,
+						"sender":     userId,
+						"groupId":    input.GroupId,
+						"username":   fromUsername,
+						"isReceived": result,
+						"isRead":     resultRead,
+						"createdAt":  time.Now(),
 					}
 				} else {
 					message = map[string]interface{}{
-						"message":   input.Text,
-						"isPhoto":   false,
-						"sender":    userId,
-						"groupId":   input.GroupId,
-						"username":  fromUsername,
-						"createdAt": time.Now(),
+						"message":    input.Text,
+						"isPhoto":    false,
+						"sender":     userId,
+						"groupId":    input.GroupId,
+						"username":   fromUsername,
+						"createdAt":  time.Now(),
+						"isReceived": result,
+						"isRead":     resultRead,
 					}
 				}
 
@@ -266,17 +264,21 @@ func (h *Handler) webSocket(input *helpers.SendMessageRequest, userId uint) erro
 		if exists {
 			if input.PhotoPath != "" {
 				message = map[string]interface{}{
-					"message":   input.PhotoPath,
-					"isPhoto":   true,
-					"sender":    userId,
-					"createdAt": time.Now(),
+					"message":    input.PhotoPath,
+					"isPhoto":    true,
+					"sender":     userId,
+					"createdAt":  time.Now(),
+					"isReceived": result,
+					"isRead":     resultRead,
 				}
 			} else {
 				message = map[string]interface{}{
-					"message":   input.Text,
-					"isPhoto":   false,
-					"sender":    userId,
-					"createdAt": time.Now(),
+					"message":    input.Text,
+					"isPhoto":    false,
+					"sender":     userId,
+					"createdAt":  time.Now(),
+					"isReceived": result,
+					"isRead":     resultRead,
 				}
 			}
 
@@ -288,7 +290,7 @@ func (h *Handler) webSocket(input *helpers.SendMessageRequest, userId uint) erro
 		}
 	}
 
-	return nil
+	return message, nil
 }
 
 func (h *Handler) uploadProfilePicture(w http.ResponseWriter, r *http.Request) {
@@ -429,20 +431,16 @@ func (h *Handler) sendPhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = h.webSocket(&payload, userId); err != nil {
+	message, err := h.webSocket(&payload, userId, result, false)
+	if err != nil {
 		helpers.HandleError(w, helpers.NewAPIError("Failed to send WebSocket notification", http.StatusBadRequest))
 		return
 	}
-	var res map[string]string
 
-	if result {
-		res = map[string]string{
-			"photoPath": filepath,
-		}
-	}
+	message["photoPath"] = filepath
 
 	w.Header().Set("Content-Type", "application/json")
-	err = json.NewEncoder(w).Encode(res)
+	err = json.NewEncoder(w).Encode(message)
 	if err != nil {
 		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
 		return
@@ -454,4 +452,26 @@ func parseOptionalInt(value string) (int, error) {
 		return 0, nil
 	}
 	return strconv.Atoi(value)
+}
+
+func (h *Handler) markAsRead(w http.ResponseWriter, r *http.Request) {
+	userId := r.Context().Value("userId").(uint)
+	var input helpers.SendMessageRequest
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusUnprocessableEntity))
+		return
+	}
+
+	result, err := h.services.MarkAsRead(userId, &input)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusUnprocessableEntity))
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(result)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
+		return
+	}
 }

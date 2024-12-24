@@ -8,5 +8,6 @@ type MessagesResponse struct {
 	UserId         uint      `json:"user_id"`
 	ConversationId uint      `json:"conversation_id"`
 	Username       string    `json:"username"`
+	IsRead         bool      `json:"is_read"`
 	CreatedAt      time.Time `json:"createdAt"`
 }

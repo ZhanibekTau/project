@@ -15,14 +15,16 @@ export function initializeWebSocket(app, groupId) {
 
     socket.onmessage = (event) => {
         const message = JSON.parse(event.data);
-        console.log('New message:', message);
+        console.log('New message:', message.message);
 
         app.messages.push({
             message: message.message,
             isPhoto:message.isPhoto,
             username: message.username ?? app.userInfo.Username,
             createdAt: message.createdAt,
+            isReceived: message.isReceived,
             isSent: false,
+            isRead: message.isRead,
         });
     };
 

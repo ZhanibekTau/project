@@ -96,6 +96,7 @@ func (s *Service) GetMessages(user1ID uint, payload *helpers.GetMessagesRequest)
 					Username:       message.Sender.Username, // Conversation ID
 					CreatedAt:      message.CreatedAt,       // Conversation ID
 					IsPhoto:        false,
+					IsRead:         message.IsRead,
 				})
 			} else {
 				response = append(response, helpers.MessagesResponse{
@@ -105,6 +106,7 @@ func (s *Service) GetMessages(user1ID uint, payload *helpers.GetMessagesRequest)
 					Username:       message.Sender.Username, // Conversation ID
 					CreatedAt:      message.CreatedAt,       // Conversation ID
 					IsPhoto:        true,
+					IsRead:         message.IsRead,
 				})
 			}
 		}
@@ -208,4 +210,23 @@ func (s *Service) AddUsersToGroup(userId uint, payload *helpers.AddUsersToGroup)
 	}
 
 	return true, nil
+}
+
+func (s *Service) MarkAsRead(userId uint, input *helpers.SendMessageRequest) (bool, error) {
+	var conv *model.Conversation
+	var err error
+
+	if !input.IsGroup {
+		conv, err = s.Repository.CheckPrivateConversation(userId, input.ToUserId)
+		if err != nil {
+			return false, err
+		}
+	} else {
+		conv, err = s.Repository.CheckGroupConversation(input.GroupId)
+		if err != nil {
+			return false, err
+		}
+	}
+
+	return s.Repository.MarkAsRead(conv.ID, userId)
 }

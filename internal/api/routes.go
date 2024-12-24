@@ -22,6 +22,7 @@ func (h *Handler) InitRoutes() http.Handler {
 	mux.Handle("/leave-group", logRequests(parseUserTokenMiddleware(handleRequest(http.MethodPost, h.leaveGroup))))
 	mux.Handle("/update-group", logRequests(parseUserTokenMiddleware(handleRequest(http.MethodPost, h.addUsersToGroup))))
 	mux.Handle("/send-photo", logRequests(parseUserTokenMiddleware(handleRequest(http.MethodPost, h.sendPhoto))))
+	mux.Handle("/mark-as-read", logRequests(parseUserTokenMiddleware(handleRequest(http.MethodPost, h.markAsRead))))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		enableCORS(w, r)

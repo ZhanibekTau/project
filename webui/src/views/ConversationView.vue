@@ -45,6 +45,12 @@
         <!-- Time at the bottom left -->
         <div class="message-footer">
           <span class="message-time">{{ formatTime(message.createdAt) }}</span>
+          <div v-if="message.isRead">
+            <i class="fas fa-check-double check-icon"></i>
+          </div>
+          <div v-else-if="message.isReceived">
+            <i class="fas fa-check check-icon"></i>
+          </div>
         </div>
       </div>
     </div>
@@ -177,7 +183,9 @@ export default {
           isPhoto: message.is_photo,
           isSent: message.user_id == getId(),
           username: message.username ?? "",
-          createdAt: message.createdAt ?? ""
+          createdAt: message.createdAt ?? "",
+          isReceived:true,
+          isRead:message.is_read,
         }));
         console.log(this.messages)
       } catch (error) {
@@ -195,45 +203,51 @@ export default {
         }
       }
     },
-    sendMessage() {
+    async sendMessage() {
       if (this.newMessage.trim()) {
         const isGroup = !!this.groupInfo.ID;
+        let isReceived = false;
+
+        try {
+          const response = await this.$axios.post('/send-message', {
+            text: this.newMessage,
+            toUserId: this.userInfo.ID,
+            isGroup:isGroup,
+            groupId:this.groupInfo.ID
+          }, {
+            headers: {
+              'Authorization': `Bearer ${getToken()}`
+            },
+          });
+
+          if (response.data) {
+            isReceived = true
+          }
+          console.log('Message sent:', response.data);
+        } catch (error) {
+          console.error('Error sending message:', error);
+          this.messages.pop();
+        }
+
+
+
         const messageToSend = {
           message: this.newMessage,
           isSent: true,
           isGroup: isGroup,
           createdAt: Date(),
+          isReceived:isReceived,
         };
 
         this.messages.push(messageToSend);
 
         this.newMessage = "";
 
-        this.sendMessageToBackend(messageToSend);
 
         this.$nextTick(() => {
           const chatMessages = this.$refs.chatMessages;
           chatMessages.scrollTop = chatMessages.scrollHeight;
         });
-      }
-    },
-    async sendMessageToBackend(message) {
-      try {
-        const response = await this.$axios.post('/send-message', {
-          text: message.message,
-          toUserId: this.userInfo.ID,
-          isGroup:message.isGroup,
-          groupId:this.groupInfo.ID
-        }, {
-          headers: {
-            'Authorization': `Bearer ${getToken()}`
-          },
-        });
-
-        console.log('Message sent:', response.data);
-      } catch (error) {
-        console.error('Error sending message:', error);
-        this.messages.pop();
       }
     },
     addUserToGroup(user) {
@@ -317,27 +331,34 @@ export default {
         });
 
         this.photoPath = response.data['photoPath']
-
-        const messageToSend = {
-          message: this.photoPath,
-          isSent: true,
-          isGroup: isGroup,
-          createdAt: Date(),
-          isPhoto: true
-        };
-
-        this.messages.push(messageToSend);
-
-        this.$nextTick(() => {
-          const chatMessages = this.$refs.chatMessages;
-          chatMessages.scrollTop = chatMessages.scrollHeight;
-        });
       } catch (error) {
         console.error("Error creating group:", error);
       }
     },
+    markAsRead() {
+      const isGroup = !!this.groupInfo.ID;
+
+      try {
+        const response = this.$axios.post(
+            "/mark-as-read",
+            {
+              groupId: this.groupInfo.ID,
+              toUserId: this.userInfo.ID,
+              isGroup:isGroup,
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${getToken()}`,
+              },
+            }
+        );
+      } catch (error) {
+        console.error("Error creating group:", error);
+      }
+    }
   },
   mounted() {
+
     if (this.$route.query.entity) {
       try {
         const entity = JSON.parse(this.$route.query.entity);
@@ -348,6 +369,8 @@ export default {
         } else {
           this.userInfo = entity;
         }
+
+        this.markAsRead();
       } catch (error) {
         console.error('Error parsing conversation data:', error);
       }
@@ -470,11 +493,20 @@ export default {
 }
 
 .message-footer {
-  font-size: 0.8em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* Размещаем элементы по краям */
+  padding: 5px 10px;
+  font-size: 12px;
   color: gray;
-  text-align: left;
-  margin-top: 5px;
 }
+
+.check-icon {
+  color: gray;          /* Цвет иконки */
+  margin-left: 5px;     /* Отступ слева */
+  font-size: 14px;      /* Размер иконки */
+}
+
 .modal {
   position: fixed;
   top: 0;
