@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"project/cmd/database/model"
 	"project/internal/helpers"
@@ -39,8 +38,9 @@ func (h *Handler) doLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := map[string]interface{}{
-		"token": token,
-		"id":    user.ID,
+		"token":    token,
+		"id":       user.ID,
+		"username": user.Username,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -137,7 +137,7 @@ func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	message, err := h.webSocket(&input, userId, result, false)
+	message, err := helpers.SendMessageResponseHandler(&input, userId, result, false)
 	if err != nil {
 		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
 		return
@@ -435,9 +435,9 @@ func (h *Handler) sendPhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	message, err := h.webSocket(&payload, userId, result, false)
+	message, err := helpers.SendMessageResponseHandler(&payload, userId, result, false)
 	if err != nil {
-		helpers.HandleError(w, helpers.NewAPIError("Failed to send WebSocket notification", http.StatusBadRequest))
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
 		return
 	}
 
@@ -492,7 +492,30 @@ func (h *Handler) deleteMessage(w http.ResponseWriter, r *http.Request) {
 		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusUnprocessableEntity))
 		return
 	}
-	fmt.Println(input.MessageId, "asdasdasdasd")
+
+	w.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(result)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusBadRequest))
+		return
+	}
+}
+
+func (h *Handler) commentMessage(w http.ResponseWriter, r *http.Request) {
+	userId := r.Context().Value("userId").(uint)
+
+	var input helpers.CommentMessage
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusUnprocessableEntity))
+		return
+	}
+
+	result, err := h.services.CommentMessage(&input, userId)
+	if err != nil {
+		helpers.HandleError(w, helpers.NewAPIError(err.Error(), http.StatusUnprocessableEntity))
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(w).Encode(result)
 	if err != nil {

@@ -46,6 +46,8 @@
         <!-- Time at the bottom left -->
         <div class="message-footer">
           <span class="message-time">{{ formatTime(message.createdAt) }}</span>
+          <span>{{message.emoji}}</span>
+          
           <div v-if="message.isRead">
             <i class="fas fa-check-double check-icon"></i>
           </div>
@@ -69,7 +71,7 @@
     </div>
 
     <div v-if="showEmojiPicker" class="emoji-picker">
-      <div v-for="emoji in emojis" :key="emoji" class="emoji" @click="selectEmoji(emoji)">
+      <div v-for="emoji in emojis" :key="emoji" class="emoji" @click="selectEmoji(emoji, selectedMessage.id)">
         {{ emoji }}
       </div>
     </div>
@@ -145,13 +147,13 @@
 </template>
 
 <script>
-import {getId, getToken} from "../store/auth";
-import {initializeWebSocket} from "../services/socket";
+import {getId, getToken, getUsername} from "../store/auth";
 import {getProfileImage} from "../store/helpers";
 
 export default {
   data() {
     return {
+      authUsername:"",
       photoPath:"",
       socket: null,
       userInfo: {},
@@ -178,13 +180,6 @@ export default {
   },
   methods: {
     getProfileImage,
-    initializeSocket() {
-      if (this.groupInfo && this.groupInfo.ID) {
-        this.socket = initializeWebSocket(this, this.groupInfo.ID);
-      } else {
-        this.socket = initializeWebSocket(this, 0);
-      }
-    },
     formatTime(timestamp) {
       const date = new Date(timestamp);
       return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -213,6 +208,7 @@ export default {
           createdAt: message.createdAt ?? "",
           isReceived:true,
           isRead:message.is_read,
+          emoji:message.emoji,
         }));
         console.log(this.messages)
       } catch (error) {
@@ -259,6 +255,7 @@ export default {
 
 
         const messageToSend = {
+          username:this.authUsername,
           message: this.newMessage,
           isSent: true,
           isGroup: isGroup,
@@ -420,8 +417,8 @@ export default {
       }
     },
     commentMessage(message) {
-      this.showEmojiPicker = true; // Show emoji picker
-      this.showContextMenu = false; // Hide context menu
+      this.showEmojiPicker = true;
+      this.showContextMenu = false;
     },
     forwardMessage(message) {
       this.showContextMenu = false;
@@ -436,15 +433,35 @@ export default {
             });
       }
     },
-    selectEmoji(emoji) {
-      console.log("Selected emoji:", emoji);
-      // Append emoji to the comment or selected message
+    selectEmoji(emoji, messageId) {
+      console.log("Selected emoji:", emoji, messageId);
       this.selectedEmoji = emoji;
-      this.showEmojiPicker = false; // Close emoji picker
+      this.showEmojiPicker = false;
+
+      try {
+        const response = this.$axios.post(
+            "/comment-message",
+            {
+              messageId: messageId,
+              emoji: emoji,
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${getToken()}`,
+              },
+            }
+        );
+      } catch (error) {
+        console.error("Error creating group:", error);
+      }
     },
+    getAuthUsername() {
+      this.authUsername = getUsername();
+    }
   },
   mounted() {
     if (this.$route.query.entity) {
+      this.getAuthUsername();
       try {
         const entity = JSON.parse(this.$route.query.entity);
         const isGroup = this.$route.query.isGroup === "true";
@@ -465,13 +482,11 @@ export default {
     userInfo(newValue) {
       if (newValue && newValue.ID) {
         this.getMessages(newValue.ID);
-        this.initializeSocket();
       }
     },
     groupInfo(newValue) {
       if (newValue && newValue.ID) {
         this.getMessages(newValue.ID);
-        this.initializeSocket();
       }
     },
   },

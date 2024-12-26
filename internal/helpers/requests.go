@@ -33,3 +33,8 @@ type AddUsersToGroup struct {
 type DeleteMessage struct {
 	MessageId uint `json:"id"`
 }
+
+type CommentMessage struct {
+	MessageId uint   `json:"messageId"`
+	Emoji     string `json:"emoji"`
+}

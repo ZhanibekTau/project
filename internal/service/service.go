@@ -88,6 +88,12 @@ func (s *Service) GetMessages(user1ID uint, payload *helpers.GetMessagesRequest)
 	var response []helpers.MessagesResponse
 	if messages != nil {
 		for _, message := range *messages {
+			var emoji string
+
+			if message.Reactions.ID != 0 {
+				emoji = message.Reactions.Reaction
+			}
+			
 			if message.MessageType == consts.MessageTypeText {
 				response = append(response, helpers.MessagesResponse{
 					MessageId:      message.ID,
@@ -98,6 +104,7 @@ func (s *Service) GetMessages(user1ID uint, payload *helpers.GetMessagesRequest)
 					CreatedAt:      message.CreatedAt,       // Conversation ID
 					IsPhoto:        false,
 					IsRead:         message.IsRead,
+					Emoji:          emoji,
 				})
 			} else {
 				response = append(response, helpers.MessagesResponse{
@@ -109,6 +116,7 @@ func (s *Service) GetMessages(user1ID uint, payload *helpers.GetMessagesRequest)
 					CreatedAt:      message.CreatedAt,       // Conversation ID
 					IsPhoto:        true,
 					IsRead:         message.IsRead,
+					Emoji:          emoji,
 				})
 			}
 		}
@@ -235,4 +243,8 @@ func (s *Service) MarkAsRead(userId uint, input *helpers.SendMessageRequest) (bo
 
 func (s *Service) DeleteMessage(msgID uint) (bool, error) {
 	return s.Repository.DeleteMessage(msgID)
+}
+
+func (s *Service) CommentMessage(payload *helpers.CommentMessage, userId uint) (bool, error) {
+	return s.Repository.CommentMessage(payload, userId)
 }

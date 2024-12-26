@@ -13,6 +13,7 @@ type Message struct {
 
 	Conversation Conversation `gorm:"foreignKey:ConversationID;constraint:OnDelete:CASCADE"`
 	Sender       User         `gorm:"foreignKey:SenderID;constraint:OnDelete:CASCADE"`
+	Reactions    Reaction     `gorm:"foreignKey:MessageID;constraint:OnDelete:CASCADE"`
 }
 
 func (m *Message) TableName() string {

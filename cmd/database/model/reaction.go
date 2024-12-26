@@ -9,8 +9,7 @@ type Reaction struct {
 	Reaction  string    `gorm:"not null"`
 	CreatedAt time.Time `gorm:"autoCreateTime"`
 
-	Message Message `gorm:"foreignKey:MessageID;constraint:OnDelete:CASCADE"`
-	User    User    `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE"`
+	User User `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE"`
 }
 
 func (r *Reaction) TableName() string {

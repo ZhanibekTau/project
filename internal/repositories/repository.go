@@ -84,7 +84,6 @@ func (r *Repository) GetUsers(query string, userId uint) (*[]model.User, error) 
 }
 
 func (r *Repository) GetPrivateMessages(user1ID uint, user2ID uint) (*[]model.Message, error) {
-	// Step 1: Find the conversation between user1 and user2
 	var conversation model.Conversation
 	err := r.database.Where("(user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?)", user1ID, user2ID, user2ID, user1ID).First(&conversation).Error
 	if err != nil {
@@ -95,13 +94,13 @@ func (r *Repository) GetPrivateMessages(user1ID uint, user2ID uint) (*[]model.Me
 		return nil, err
 	}
 
-	// Step 2: Fetch messages for this conversation
 	var messages []model.Message
-	err = r.database.Where("conversation_id = ?", conversation.ID).Order("created_at asc").Preload("Sender").Find(&messages).Error
-	if err != nil {
-		log.Println("Error fetching messages:", err)
-		return nil, err
-	}
+	err = r.database.
+		Where("conversation_id = ?", conversation.ID).
+		Order("created_at asc").
+		Preload("Sender").
+		Preload("Reactions").
+		Find(&messages).Error
 
 	return &messages, nil
 }
@@ -118,11 +117,12 @@ func (r *Repository) GetGroupMessages(groupID uint) (*[]model.Message, error) {
 	}
 
 	var messages []model.Message
-	err = r.database.Where("conversation_id = ?", conversation.ID).Order("created_at asc").Preload("Sender").Find(&messages).Error
-	if err != nil {
-		log.Println("Error fetching messages:", err)
-		return nil, err
-	}
+	err = r.database.
+		Where("conversation_id = ?", conversation.ID).
+		Order("created_at asc").
+		Preload("Sender").
+		Preload("Reactions").
+		Find(&messages).Error
 
 	return &messages, nil
 }
@@ -281,6 +281,21 @@ func (r *Repository) DeleteMessage(msgID uint) (bool, error) {
 	if err != nil {
 		log.Println("Error updating is_read:", err)
 		return false, err
+	}
+
+	return true, nil
+}
+
+func (r *Repository) CommentMessage(payload *helpers.CommentMessage, userId uint) (bool, error) {
+	var reaction model.Reaction
+	reaction.MessageID = payload.MessageId
+	reaction.UserID = userId
+	reaction.Reaction = payload.Emoji
+
+	result := r.database.Create(&reaction)
+	if result.Error != nil {
+		msg := result.Error
+		return false, msg
 	}
 
 	return true, nil

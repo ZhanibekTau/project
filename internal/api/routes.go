@@ -11,7 +11,7 @@ func (h *Handler) InitRoutes() http.Handler {
 	// Wrap handlers with the logging middleware
 	mux.Handle("/health/alive", logRequests(http.HandlerFunc(healthcheck)))
 	mux.Handle("/health/ready", logRequests(http.HandlerFunc(healthcheck)))
-	mux.Handle("/ws", logRequests(parseUserTokenMiddleware(handleRequest(http.MethodGet, h.WebSocketHandler))))
+	//mux.Handle("/ws", logRequests(parseUserTokenMiddleware(handleRequest(http.MethodGet, h.WebSocketHandler))))
 	mux.Handle("/login", logRequests(handleRequest(http.MethodPost, h.doLogin)))
 	mux.Handle("/get-conversations", logRequests(parseUserTokenMiddleware(handleRequest(http.MethodPost, h.getConversations))))
 	mux.Handle("/get-users", logRequests(parseUserTokenMiddleware(handleRequest(http.MethodGet, h.getUsers))))
@@ -24,6 +24,7 @@ func (h *Handler) InitRoutes() http.Handler {
 	mux.Handle("/send-photo", logRequests(parseUserTokenMiddleware(handleRequest(http.MethodPost, h.sendPhoto))))
 	mux.Handle("/mark-as-read", logRequests(parseUserTokenMiddleware(handleRequest(http.MethodPost, h.markAsRead))))
 	mux.Handle("/delete-message", logRequests(parseUserTokenMiddleware(handleRequest(http.MethodPost, h.deleteMessage))))
+	mux.Handle("/comment-message", logRequests(parseUserTokenMiddleware(handleRequest(http.MethodPost, h.commentMessage))))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		enableCORS(w, r)
